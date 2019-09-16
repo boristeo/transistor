@@ -1,28 +1,39 @@
 module top (
   input wire clk,
   input wire [3:0] btn,
-  output wire [7:0] je,
+  inout wire [7:0] je,
   output wire [3:0] led
 );
-  assign led[0] = ~je[0];
 
-  reg [7:0] data = 65;
+  reg tx_rdy;
+  reg [7:0] tx_d = 65;
+
+  wire rx_rdy;
+  wire [7:0] rx_d;
+
+  assign led[3:0] = rx_d[3:0];
 
   uart u (
     .clk_125MHz(clk),
-    .tx_d(data),
-    .tx_rdy(btn[0]),
-    .tx(je[0])
+    .tx_d(tx_d),
+    .tx_rdy(tx_rdy),
+    .tx(je[0]),
+    .rx_d(rx_d),
+    .rx_rdy(rx_rdy),
+    .rx(je[1])
   );
 
   always @ (posedge clk)
   begin
-    if (btn[3])
+    tx_rdy <= rx_rdy;
+    if (rx_rdy)
     begin
-      if (data >= 126)
-        data = 33;
+      if (rx_d >= 65 && rx_d <= 90)
+        tx_d <= rx_d + 32;
+      else if (rx_d >= 97 && rx_d <= 122)
+        tx_d <= rx_d - 32;
       else
-        data = data + 1;
+        tx_d <= rx_d;
     end
   end
 
