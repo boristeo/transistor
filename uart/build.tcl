@@ -4,6 +4,7 @@ set SRCDIR "src"
 set XDCDIR "xdc"
 
 read_verilog $SRCDIR/top.v
+read_verilog $SRCDIR/uart.v
 read_xdc $XDCDIR/zybo.xdc
 
 synth_design -top top -part $PART
