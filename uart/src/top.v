@@ -1,21 +1,23 @@
-//`define CLK_PER_HALF_CYCLE 83333 // for 300 baud
-`define CLK_PER_HALF_CYCLE 50000000 // for 1 baud
+`define CLK_PER_HALF_CYCLE 542 // for 115200 baud
+//`define CLK_PER_HALF_CYCLE 208333 // for 300 baud apparently
+//`define CLK_PER_HALF_CYCLE 62500000 // for 1 baud
 module top (
   input wire clk,
   input wire [3:0] btn,
+  output wire [7:0] je,
   output wire [3:0] led
 );
-  reg [31:0] clk_counter;
+  reg [31:0] clk_counter = 0;
 
   reg clk_uart = 0;
 
-  reg [7:0] d_to_tx = 8'b01010101;
+  reg [7:0] d_to_tx = 65;
   reg [3:0] tx_bit = 0;
 
   reg out = 1;
 
-  assign led[0] = out;
-  assign led[3] = clk_uart;
+  assign led[0] = ~out;
+  assign je[0] = out;
 
   always @ (posedge clk)
   begin
