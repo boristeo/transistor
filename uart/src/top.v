@@ -1,3 +1,7 @@
+`define CLK_PER_HALF_CYCLE 542 // for 115200 baud
+//`define CLK_PER_HALF_CYCLE 208333 // for 300 baud apparently
+//`define CLK_PER_HALF_CYCLE 62500000 // for 1 baud
+
 module top (
   input wire clk,
   input wire [3:0] btn,
@@ -13,8 +17,23 @@ module top (
 
   assign led[3:0] = rx_d[3:0];
 
+  // Clock divider
+  reg [31:0] clk_counter = 0;
+  reg clk_uart = 0;
+
+  always @ (posedge clk)
+  begin
+    if (clk_counter == `CLK_PER_HALF_CYCLE)
+    begin
+      clk_counter = 0;
+      clk_uart = ~clk_uart;
+    end
+    else
+      clk_counter = clk_counter + 1;
+  end
+
   uart u (
-    .clk_125MHz(clk),
+    .clk_uart(clk_uart),
     .tx_d(tx_d),
     .tx_rdy(tx_rdy),
     .tx(je[0]),
@@ -23,7 +42,7 @@ module top (
     .rx(je[1])
   );
 
-  always @ (posedge clk)
+  always @ (negedge clk_uart)
   begin
     tx_rdy <= rx_rdy;
     if (rx_rdy)

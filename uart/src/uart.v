@@ -1,9 +1,5 @@
-`define CLK_PER_HALF_CYCLE 542 // for 115200 baud
-//`define CLK_PER_HALF_CYCLE 208333 // for 300 baud apparently
-//`define CLK_PER_HALF_CYCLE 62500000 // for 1 baud
-
 module uart (
-  input wire clk_125MHz,
+  input wire clk_uart,
   input wire [7:0] tx_d,
   input wire tx_rdy,
   output reg tx = 1,
@@ -11,20 +7,6 @@ module uart (
   output reg rx_rdy = 0,
   input wire rx
 );
-  // Clock divider
-  reg [31:0] clk_counter = 0;
-  reg clk_uart = 0;
-
-  always @ (posedge clk_125MHz)
-  begin
-    if (clk_counter == `CLK_PER_HALF_CYCLE)
-    begin
-      clk_counter = 0;
-      clk_uart = ~clk_uart;
-    end
-    else
-      clk_counter = clk_counter + 1;
-  end
 
   // TX state machine
   reg [3:0] tx_bit = 0;
