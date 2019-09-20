@@ -1,0 +1,344 @@
+#!/usr/bin/env python3
+
+import os
+import sys
+import struct
+
+#/*(RISC-V V2.2)*/
+#/******* MASKS ********/
+BYTE_MASK = 0xff
+BYTE_LEN = 8
+BYTE_LEN_B = 1
+HWORD_MASK = 0xffff
+HWORD_LEN = 16
+HWORD_LEN_B = 2
+WORD_MASK = 0xffffffff
+WORD_MAXS = 0x7fffffff
+WORD_MINS = 0x80000000
+WORD_LEN = 32
+WORD_LEN_B = 4
+DWORD_MASK = 0xffffffffffffffff
+DWORD_LEN = 64
+DWORD_LEN_B = 8
+
+OPCODE_MASK = 0x7f
+OPCODE_OFFSET = 0
+OPCODE_LENGTH = 7
+
+RD_MASK = 0xf80
+RD_OFFSET = 7
+RD_LENGTH = 5
+
+FUNCT3_MASK = 0x7000
+FUNCT3_OFFSET = 12
+FUNCT3_LENGTH = 3
+
+RS1_MASK = 0xf8000
+RS1_OFFSET = 15
+RS1_LENGTH = 5
+
+RS2_MASK = 0x1f00000
+RS2_OFFSET = 20
+RS2_LENGTH = 5
+
+SHAMT_MASK = 0x3f00000
+SHAMT_OFFSET = 20
+SHAMT_LENGTH = 6
+
+SHEAD_MASK = 0xfc000000
+SHEAD_OFFSET = 26
+SHEAD_LENGTH = 6
+
+SHAMTW_MASK = 0x1f00000
+SHAMTW_OFFSET = 20
+SHAMTW_LENGTH = 5
+
+SHEADW_MASK = 0xfe000000
+SHEADW_OFFSET = 25
+SHEADW_LENGTH = 7
+
+#/* R */
+R_FUNCT7_MASK = 0xfe000000
+R_FUNCT7_OFFSET = 25
+R_FUNCT7_LENGTH = 7
+
+#/* I */
+I_IMMB0_MASK = 0xfff00000
+I_IMMB0_OFFSET = 20
+I_IMMB0_LENGTH = 12
+
+
+#/* S */
+S_IMM40_MASK = 0xf80
+S_IMM40_OFFSET = 7
+S_IMM40_LENGTH = 5
+
+S_IMMB5_MASK = 0xfe000000
+S_IMMB5_OFFSET = 25
+S_IMMB5_LENGTH = 7
+
+#/* B */
+B_IMMBB_MASK = 0x80
+B_IMMBB_OFFSET = 7
+B_IMMBB_LENGTH = 1
+
+B_IMM41_MASK = 0xf00
+B_IMM41_OFFSET = 8
+B_IMM41_LENGTH = 4
+
+B_IMMA5_MASK = 0x7e000000
+B_IMMA5_OFFSET = 25
+B_IMMA5_LENGTH = 6
+
+B_IMMCC_MASK = 0x80000000
+B_IMMCC_OFFSET = 31
+B_IMMCC_LENGTH = 1
+
+#/* U */
+U_IMMVC_MASK = 0xfffff000
+#/* DO NOT USE - IMMVC ALREADY ALIGNED
+#U_IMMVC_OFFSET = 12
+#U_IMMVC_LENGTH = 20
+#*/
+
+#/* J */
+J_IMMJC_MASK = 0xff000
+J_IMMJC_OFFSET = 12
+J_IMMJC_LENGTH = 8
+
+J_IMMBB_MASK = 0x100000
+J_IMMBB_OFFSET = 20
+J_IMMBB_LENGTH = 1
+
+J_IMMA1_MASK = 0x7fe00000
+J_IMMA1_OFFSET = 21
+F_IMMA1_LENGTH = 10
+
+J_IMMKK_MASK = 0x80000000
+J_IMMKK_OFFSET = 31
+J_IMMKK_LENGTH = 1
+
+
+#    31 30 29 28|27 26 25 24|23 22 21 20|19 18 17 16|15 14 13 12|11 10 09 08|07 06 05 04|03 02 01 00
+#    -----------|-----------|-----------|-----------|-----------|-----------|-----------|-----------
+# R  f7 f7 f7 f7|f7 f7 f7 s2|s2 s2 s2 s2|s1 s1 s1 s1|s1 f3 f3 f3|rd rd rd rd|rd op op op|op op op op
+# I  B0 B0 B0 B0|B0 B0 B0 B0|B0 B0 B0 B0|s1 s1 s1 s1|s1 f3 f3 f3|rd rd rd rd|rd op op op|op op op op
+# S  B5 B5 B5 B5|B5 B5 B5 s2|s2 s2 s2 s2|s1 s1 s1 s1|s1 f3 f3 f3|40 40 40 40|40 op op op|op op op op
+# B  CC A5 A5 A5|A5 A5 A5 s2|s2 s2 s2 s2|s1 s1 s1 s1|s1 f3 f3 f3|41 41 41 41|BB op op op|op op op op
+# U  VC VC VC VC|VC VC VC VC|VC VC VC VC|VC VC VC VC|VC VC VC VC|rd rd rd rd|rd op op op|op op op op
+# J  KK A1 A1 A1|A1 A1 A1 A1|A1 A1 A1 BB|JC JC JC JC|JC JC JC JC|rd rd rd rd|rd op op op|op op op op
+
+
+ENCODING = {
+  0x33: 'R', # OP
+  0x3b: 'R', # OP32
+  0x03: 'I', # LOAD
+  0x13: 'I', # OPIMM
+  0x1b: 'I', # OPIMM32
+  0x67: 'I', # JALR
+  0x23: 'S', # STORE
+  0x63: 'B', # BRANCH
+  0x17: 'U', # AUIPC
+  0x37: 'U', # LUI
+  0x6f: 'J', # JAL
+}
+
+FUNCT3 = {
+"SLLI"   : 0b001,
+"SRLI"   : 0b101,
+"SRAI"   : 0b101,
+"ADDI"   : 0b000,
+"SLTI"   : 0b010,
+"SLTIU"  : 0b011,
+"XORI"   : 0b100,
+"ORI"    : 0b110,
+"ANDI"   : 0b111,
+#"AUIPC"  : 0b111,
+"SLLIW"  : 0b001,
+"SRLIW"  : 0b101,
+"SRAIW"  : 0b101,
+"ADDIW"  : 0b000,
+"SB"     : 0b000,
+"SH"     : 0b001,
+"SW"     : 0b010,
+"SD"     : 0b011,
+"LB"     : 0b000,
+"LH"     : 0b001,
+"LW"     : 0b010,
+"LD"     : 0b011,
+"LBU"    : 0b100,
+"LHU"    : 0b101,
+"LWU"    : 0b110,
+"ADD"    : 0b000,
+"SLL"    : 0b001,
+"SLT"    : 0b010,
+"SLTU"   : 0b011,
+"XOR"    : 0b100,
+"SRL"    : 0b101,
+"OR"     : 0b110,
+"AND"    : 0b111,
+"MUL"    : 0b000,
+"MULH"   : 0b001,
+"MULHSU" : 0b010,
+"MULHU"  : 0b011,
+"DIV"    : 0b100,
+"DIVU"   : 0b101,
+"REM"    : 0b110,
+"REMU"   : 0b111,
+"SUB"    : 0b000,
+"SRA"    : 0b101,
+#"LUI"    : 0b000,
+"ADDW"   : 0b000,
+"SLLW"   : 0b001,
+"SRLW"   : 0b101,
+"MULW"   : 0b000,
+"DIVW"   : 0b100,
+"DIVUW"  : 0b101,
+"REMW"   : 0b110,
+"REMUW"  : 0b111,
+"SUBW"   : 0b000,
+"SRAW"   : 0b101,
+"BEQ"    : 0b000,
+"BNE"    : 0b001,
+"BLT"    : 0b100,
+"BGE"    : 0b101,
+"BLTU"   : 0b110,
+"BGEU"   : 0b111,
+"JALR"   : 0b000,
+#"JAL"    : 0b100,
+"ECALL"  : 0b000,
+"EBREAK" : 0b000,
+"CSRRW"  : 0b001,
+"CSRRS"  : 0b010,
+"CSRRC"  : 0b011,
+"CSRRWI" : 0b101,
+"CSRRSI" : 0b110,
+"CSRRCI" : 0b111,
+"FENCE"  : 0b000,
+"FENCE.I": 0b001
+}
+
+OPCODE = {
+"SLLI"   : 0b0010011,
+"SRLI"   : 0b0010011,
+"SRAI"   : 0b0010011,
+"ADDI"   : 0b0010011,
+"SLTI"   : 0b0010011,
+"SLTIU"  : 0b0010011,
+"XORI"   : 0b0010011,
+"ORI"    : 0b0010011,
+"ANDI"   : 0b0010011,
+"AUIPC"  : 0b0010111,
+"SLLIW"  : 0b0011011,
+"SRLIW"  : 0b0011011,
+"SRAIW"  : 0b0011011,
+"ADDIW"  : 0b0011011,
+"SB"     : 0b0100011,
+"SH"     : 0b0100011,
+"SW"     : 0b0100011,
+"SD"     : 0b0100011,
+"LB"     : 0b0000011,
+"LH"     : 0b0000011,
+"LW"     : 0b0000011,
+"LD"     : 0b0000011,
+"LBU"    : 0b0000011,
+"LHU"    : 0b0000011,
+"LWU"    : 0b0000011,
+"ADD"    : 0b0110011,
+"SLL"    : 0b0110011,
+"SLT"    : 0b0110011,
+"SLTU"   : 0b0110011,
+"XOR"    : 0b0110011,
+"SRL"    : 0b0110011,
+"OR"     : 0b0110011,
+"AND"    : 0b0110011,
+"MUL"    : 0b0110011,
+"MULH"   : 0b0110011,
+"MULHSU" : 0b0110011,
+"MULHU"  : 0b0110011,
+"DIV"    : 0b0110011,
+"DIVU"   : 0b0110011,
+"REM"    : 0b0110011,
+"REMU"   : 0b0110011,
+"SUB"    : 0b0110011,
+"SRA"    : 0b0110011,
+"LUI"    : 0b0110111,
+"ADDW"   : 0b0111011,
+"SLLW"   : 0b0111011,
+"SRLW"   : 0b0111011,
+"MULW"   : 0b0111011,
+"DIVW"   : 0b0111011,
+"DIVUW"  : 0b0111011,
+"REMW"   : 0b0111011,
+"REMUW"  : 0b0111011,
+"SUBW"   : 0b0111011,
+"SRAW"   : 0b0111011,
+"BEQ"    : 0b1100011,
+"BNE"    : 0b1100011,
+"BLT"    : 0b1100011,
+"BGE"    : 0b1100011,
+"BLTU"   : 0b1100011,
+"BGEU"   : 0b1100011,
+"JALR"   : 0b1100111,
+"JAL"    : 0b1101111,
+"ECALL"  : 0b1110011,
+"EBREAK" : 0b1110011,
+"CSRRW"  : 0b1110011,
+"CSRRS"  : 0b1110011,
+"CSRRC"  : 0b1110011,
+"CSRRWI" : 0b1110011,
+"CSRRSI" : 0b1110011,
+"CSRRCI" : 0b1110011,
+"FENCE"  : 0b0001111,
+"FENCE.I": 0b0001111
+}
+
+def gen_instr_bytes(name, d, a1, a2):
+  op = OPCODE[name]
+  encoding = ENCODING[op]
+
+  enc_int = op
+  if encoding == 'R':
+    raise NotImplementedError
+  elif encoding == 'I':
+    raise NotImplementedError
+  elif encoding == 'S':
+    raise NotImplementedError
+  elif encoding == 'B':
+    raise NotImplementedError
+  elif encoding == 'U':
+    raise NotImplementedError
+  elif encoding == 'J':
+    raise NotImplementedError
+
+  return enc_int.to_bytes(4, byteorder='little')
+
+if len(sys.argv) < 2:
+  print('No input file specified')
+  exit()
+
+labels = {}
+byte = 0
+with open(sys.argv[1], 'r') as src:
+  with os.fdopen(sys.stdout.fileno(), 'wb', closefd=False) as stdout:
+    for i, line in enumerate([l.strip() for l in src]):
+      if len(line) == 0:
+        # empty
+        continue
+
+      elif line[-1] == ':':
+        # label
+        if len(line) < 1 or line[:-1] in labels:
+          print('Repeated label at line %d' % i)
+          exit()
+        else:
+          labels[line[:-1]] = byte
+          continue
+
+      else:
+        # instruction
+        encoded = encode_rv()
+        stdout.write(encoded)
+        byte += len(encoded)
+
+    stdout.flush()
