@@ -141,167 +141,251 @@ ENCODING = {
   0x17: 'U', # AUIPC
   0x37: 'U', # LUI
   0x6f: 'J', # JAL
+  0x73: 'E'
 }
 
 FUNCT3 = {
-"SLLI"   : 0b001,
-"SRLI"   : 0b101,
-"SRAI"   : 0b101,
-"ADDI"   : 0b000,
-"SLTI"   : 0b010,
-"SLTIU"  : 0b011,
-"XORI"   : 0b100,
-"ORI"    : 0b110,
-"ANDI"   : 0b111,
-#"AUIPC"  : 0b111,
-"SLLIW"  : 0b001,
-"SRLIW"  : 0b101,
-"SRAIW"  : 0b101,
-"ADDIW"  : 0b000,
-"SB"     : 0b000,
-"SH"     : 0b001,
-"SW"     : 0b010,
-"SD"     : 0b011,
-"LB"     : 0b000,
-"LH"     : 0b001,
-"LW"     : 0b010,
-"LD"     : 0b011,
-"LBU"    : 0b100,
-"LHU"    : 0b101,
-"LWU"    : 0b110,
-"ADD"    : 0b000,
-"SLL"    : 0b001,
-"SLT"    : 0b010,
-"SLTU"   : 0b011,
-"XOR"    : 0b100,
-"SRL"    : 0b101,
-"OR"     : 0b110,
-"AND"    : 0b111,
-"MUL"    : 0b000,
-"MULH"   : 0b001,
-"MULHSU" : 0b010,
-"MULHU"  : 0b011,
-"DIV"    : 0b100,
-"DIVU"   : 0b101,
-"REM"    : 0b110,
-"REMU"   : 0b111,
-"SUB"    : 0b000,
-"SRA"    : 0b101,
-#"LUI"    : 0b000,
-"ADDW"   : 0b000,
-"SLLW"   : 0b001,
-"SRLW"   : 0b101,
-"MULW"   : 0b000,
-"DIVW"   : 0b100,
-"DIVUW"  : 0b101,
-"REMW"   : 0b110,
-"REMUW"  : 0b111,
-"SUBW"   : 0b000,
-"SRAW"   : 0b101,
-"BEQ"    : 0b000,
-"BNE"    : 0b001,
-"BLT"    : 0b100,
-"BGE"    : 0b101,
-"BLTU"   : 0b110,
-"BGEU"   : 0b111,
-"JALR"   : 0b000,
-#"JAL"    : 0b100,
-"ECALL"  : 0b000,
-"EBREAK" : 0b000,
-"CSRRW"  : 0b001,
-"CSRRS"  : 0b010,
-"CSRRC"  : 0b011,
-"CSRRWI" : 0b101,
-"CSRRSI" : 0b110,
-"CSRRCI" : 0b111,
-"FENCE"  : 0b000,
-"FENCE.I": 0b001
+'slli'   : 0b001,
+'srli'   : 0b101,
+'srai'   : 0b101,
+'addi'   : 0b000,
+'slti'   : 0b010,
+'sltiu'  : 0b011,
+'xori'   : 0b100,
+'ori'    : 0b110,
+'andi'   : 0b111,
+#'auipc'  : 0b111,
+'slliw'  : 0b001,
+'srliw'  : 0b101,
+'sraiw'  : 0b101,
+'addiw'  : 0b000,
+'sb'     : 0b000,
+'sh'     : 0b001,
+'sw'     : 0b010,
+'sd'     : 0b011,
+'lb'     : 0b000,
+'lh'     : 0b001,
+'lw'     : 0b010,
+'ld'     : 0b011,
+'lbu'    : 0b100,
+'lhu'    : 0b101,
+'lwu'    : 0b110,
+'add'    : 0b000,
+'sll'    : 0b001,
+'slt'    : 0b010,
+'sltu'   : 0b011,
+'xor'    : 0b100,
+'srl'    : 0b101,
+'or'     : 0b110,
+'and'    : 0b111,
+'mul'    : 0b000,
+'mulh'   : 0b001,
+'mulhsu' : 0b010,
+'mulhu'  : 0b011,
+'div'    : 0b100,
+'divu'   : 0b101,
+'rem'    : 0b110,
+'remu'   : 0b111,
+'sub'    : 0b000,
+'sra'    : 0b101,
+#'lui'    : 0b000,
+'addw'   : 0b000,
+'sllw'   : 0b001,
+'srlw'   : 0b101,
+'mulw'   : 0b000,
+'divw'   : 0b100,
+'divuw'  : 0b101,
+'remw'   : 0b110,
+'remuw'  : 0b111,
+'subw'   : 0b000,
+'sraw'   : 0b101,
+'beq'    : 0b000,
+'bne'    : 0b001,
+'blt'    : 0b100,
+'bge'    : 0b101,
+'bltu'   : 0b110,
+'bgeu'   : 0b111,
+'jalr'   : 0b000,
+#'jal'    : 0b100,
+'ecall'  : 0b000,
+'ebreak' : 0b000,
+'csrrw'  : 0b001,
+'csrrs'  : 0b010,
+'csrrc'  : 0b011,
+'csrrwi' : 0b101,
+'csrrsi' : 0b110,
+'csrrci' : 0b111,
+'fence'  : 0b000,
+'fence.i': 0b001
 }
 
 OPCODE = {
-"SLLI"   : 0b0010011,
-"SRLI"   : 0b0010011,
-"SRAI"   : 0b0010011,
-"ADDI"   : 0b0010011,
-"SLTI"   : 0b0010011,
-"SLTIU"  : 0b0010011,
-"XORI"   : 0b0010011,
-"ORI"    : 0b0010011,
-"ANDI"   : 0b0010011,
-"AUIPC"  : 0b0010111,
-"SLLIW"  : 0b0011011,
-"SRLIW"  : 0b0011011,
-"SRAIW"  : 0b0011011,
-"ADDIW"  : 0b0011011,
-"SB"     : 0b0100011,
-"SH"     : 0b0100011,
-"SW"     : 0b0100011,
-"SD"     : 0b0100011,
-"LB"     : 0b0000011,
-"LH"     : 0b0000011,
-"LW"     : 0b0000011,
-"LD"     : 0b0000011,
-"LBU"    : 0b0000011,
-"LHU"    : 0b0000011,
-"LWU"    : 0b0000011,
-"ADD"    : 0b0110011,
-"SLL"    : 0b0110011,
-"SLT"    : 0b0110011,
-"SLTU"   : 0b0110011,
-"XOR"    : 0b0110011,
-"SRL"    : 0b0110011,
-"OR"     : 0b0110011,
-"AND"    : 0b0110011,
-"MUL"    : 0b0110011,
-"MULH"   : 0b0110011,
-"MULHSU" : 0b0110011,
-"MULHU"  : 0b0110011,
-"DIV"    : 0b0110011,
-"DIVU"   : 0b0110011,
-"REM"    : 0b0110011,
-"REMU"   : 0b0110011,
-"SUB"    : 0b0110011,
-"SRA"    : 0b0110011,
-"LUI"    : 0b0110111,
-"ADDW"   : 0b0111011,
-"SLLW"   : 0b0111011,
-"SRLW"   : 0b0111011,
-"MULW"   : 0b0111011,
-"DIVW"   : 0b0111011,
-"DIVUW"  : 0b0111011,
-"REMW"   : 0b0111011,
-"REMUW"  : 0b0111011,
-"SUBW"   : 0b0111011,
-"SRAW"   : 0b0111011,
-"BEQ"    : 0b1100011,
-"BNE"    : 0b1100011,
-"BLT"    : 0b1100011,
-"BGE"    : 0b1100011,
-"BLTU"   : 0b1100011,
-"BGEU"   : 0b1100011,
-"JALR"   : 0b1100111,
-"JAL"    : 0b1101111,
-"ECALL"  : 0b1110011,
-"EBREAK" : 0b1110011,
-"CSRRW"  : 0b1110011,
-"CSRRS"  : 0b1110011,
-"CSRRC"  : 0b1110011,
-"CSRRWI" : 0b1110011,
-"CSRRSI" : 0b1110011,
-"CSRRCI" : 0b1110011,
-"FENCE"  : 0b0001111,
-"FENCE.I": 0b0001111
+'slli'   : 0b0010011,
+'srli'   : 0b0010011,
+'srai'   : 0b0010011,
+'addi'   : 0b0010011,
+'slti'   : 0b0010011,
+'sltiu'  : 0b0010011,
+'xori'   : 0b0010011,
+'ori'    : 0b0010011,
+'andi'   : 0b0010011,
+'auipc'  : 0b0010111,
+'slliw'  : 0b0011011,
+'srliw'  : 0b0011011,
+'sraiw'  : 0b0011011,
+'addiw'  : 0b0011011,
+'sb'     : 0b0100011,
+'sh'     : 0b0100011,
+'sw'     : 0b0100011,
+'sd'     : 0b0100011,
+'lb'     : 0b0000011,
+'lh'     : 0b0000011,
+'lw'     : 0b0000011,
+'ld'     : 0b0000011,
+'lbu'    : 0b0000011,
+'lhu'    : 0b0000011,
+'lwu'    : 0b0000011,
+'add'    : 0b0110011,
+'sll'    : 0b0110011,
+'slt'    : 0b0110011,
+'sltu'   : 0b0110011,
+'xor'    : 0b0110011,
+'srl'    : 0b0110011,
+'or'     : 0b0110011,
+'and'    : 0b0110011,
+'mul'    : 0b0110011,
+'mulh'   : 0b0110011,
+'mulhsu' : 0b0110011,
+'mulhu'  : 0b0110011,
+'div'    : 0b0110011,
+'divu'   : 0b0110011,
+'rem'    : 0b0110011,
+'remu'   : 0b0110011,
+'sub'    : 0b0110011,
+'sra'    : 0b0110011,
+'lui'    : 0b0110111,
+'addw'   : 0b0111011,
+'sllw'   : 0b0111011,
+'srlw'   : 0b0111011,
+'mulw'   : 0b0111011,
+'divw'   : 0b0111011,
+'divuw'  : 0b0111011,
+'remw'   : 0b0111011,
+'remuw'  : 0b0111011,
+'subw'   : 0b0111011,
+'sraw'   : 0b0111011,
+'beq'    : 0b1100011,
+'bne'    : 0b1100011,
+'blt'    : 0b1100011,
+'bge'    : 0b1100011,
+'bltu'   : 0b1100011,
+'bgeu'   : 0b1100011,
+'jalr'   : 0b1100111,
+'jal'    : 0b1101111,
+'ecall'  : 0b1110011,
+'ebreak' : 0b1110011,
+'csrrw'  : 0b1110011,
+'csrrs'  : 0b1110011,
+'csrrc'  : 0b1110011,
+'csrrwi' : 0b1110011,
+'csrrsi' : 0b1110011,
+'csrrci' : 0b1110011,
+'fence'  : 0b0001111,
+'fence.i': 0b0001111
 }
 
-def gen_instr_bytes(name, d, a1, a2):
+REG_IDX = {
+'x0' : 0,
+'x1' : 1,
+'x2' : 2,
+'x3' : 3,
+'x4' : 4,
+'x5' : 5,
+'x6' : 6,
+'x7' : 7,
+'x8' : 8,
+'x9' : 9,
+'x10' : 10,
+'x11' : 11,
+'x12' : 12,
+'x13' : 13,
+'x14' : 14,
+'x15' : 15,
+'x16' : 16,
+'x17' : 17,
+'x18' : 18,
+'x19' : 19,
+'x20' : 20,
+'x21' : 21,
+'x22' : 22,
+'x23' : 23,
+'x24' : 24,
+'x25' : 25,
+'x26' : 26,
+'x27' : 27,
+'x28' : 28,
+'x29' : 29,
+'x30' : 30,
+'x31' : 31,
+'zero' : 0,
+'ra' : 1,
+'sp' : 2,
+'gp' : 3,
+'tp' : 4,
+'t0' : 5,
+'t1' : 6,
+'t2' : 7,
+'s0' : 8,
+'fp' : 8,
+'s1' : 9,
+'a0' : 10,
+'a1' : 11,
+'a2' : 12,
+'a3' : 13,
+'a4' : 14,
+'a5' : 15,
+'a6' : 16,
+'a7' : 17,
+'s2' : 18,
+'s3' : 19,
+'s4' : 20,
+'s5' : 21,
+'s6' : 22,
+'s7' : 23,
+'s8' : 24,
+'s9' : 25,
+'s10' : 26,
+'s11' : 27,
+'t3' : 28,
+'t4' : 29,
+'t5' : 30,
+'t6' : 31
+}
+
+
+def encode_rv(name, *args):
   op = OPCODE[name]
   encoding = ENCODING[op]
 
   enc_int = op
   if encoding == 'R':
-    raise NotImplementedError
+    assert len(args) == 3
+    funct3 = FUNCT3[name]
+    enc_int |= funct3 << FUNCT3_OFFSET
+    enc_int |= REG_IDX[args[0]] << RD_OFFSET
+    enc_int |= REG_IDX[args[1]] << RS1_OFFSET
+    enc_int |= REG_IDX[args[2]] << RS2_OFFSET
   elif encoding == 'I':
-    raise NotImplementedError
+    assert len(args) == 3
+    immediate = int(args[2])
+    assert immediate < 2 ** I_IMMB0_LENGTH
+    assert immediate >= -(2 ** (I_IMMB0_LENGTH - 1))
+
+    funct3 = FUNCT3[name]
+    enc_int |= funct3 << FUNCT3_OFFSET
+    enc_int |= REG_IDX[args[0]] << RD_OFFSET
+    enc_int |= REG_IDX[args[1]] << RS1_OFFSET
+    enc_int |= immediate << I_IMMB0_OFFSET
   elif encoding == 'S':
     raise NotImplementedError
   elif encoding == 'B':
@@ -310,6 +394,17 @@ def gen_instr_bytes(name, d, a1, a2):
     raise NotImplementedError
   elif encoding == 'J':
     raise NotImplementedError
+  elif encoding == 'E':
+    if name == 'ebreak':
+      immediate = 1
+    elif name == 'ecall':
+      immediate = 0
+    else:
+      assert False, name + ' not handled'
+    enc_int |= immediate << I_IMMB0_OFFSET
+  else:
+    assert False,encoding + ' encoding not handled'
+
 
   return enc_int.to_bytes(4, byteorder='little')
 
@@ -321,7 +416,7 @@ labels = {}
 byte = 0
 with open(sys.argv[1], 'r') as src:
   with os.fdopen(sys.stdout.fileno(), 'wb', closefd=False) as stdout:
-    for i, line in enumerate([l.strip() for l in src]):
+    for i, line in enumerate([l.strip().lower() for l in src]):
       if len(line) == 0:
         # empty
         continue
@@ -337,7 +432,8 @@ with open(sys.argv[1], 'r') as src:
 
       else:
         # instruction
-        encoded = encode_rv()
+        parts = line.split()
+        encoded = encode_rv(parts[0], *parts[1:])
         stdout.write(encoded)
         byte += len(encoded)
 

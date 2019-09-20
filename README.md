@@ -17,3 +17,6 @@ Speaking of memory, I want to have caches. Probably just L1 for now. In case I w
 ## Day 3
 Started writing a RISC-V assembler in Python. Other than that I've just been researching how real systems do all this stuff
 
+# Day 4
+Assembler is starting to work. Only did R and I instructions for now, but the others should be just a couple lines of code
+
