@@ -387,7 +387,17 @@ def encode_rv(name, *args):
     enc_int |= REG_IDX[args[1]] << RS1_OFFSET
     enc_int |= immediate << I_IMMB0_OFFSET
   elif encoding == 'S':
-    raise NotImplementedError
+    assert len(args) == 3
+    immediate = int(args[2])
+    assert immediate < 2 ** (S_IMM40_LENGTH + S_IMMB5_LENGTH)
+    assert immediate >= -(2 ** (S_IMM40_LENGTH + S_IMMB5_LENGTH - 1))
+
+    funct3 = FUNCT3[name]
+    enc_int |= funct3 << FUNCT3_OFFSET
+    enc_int |= REG_IDX[args[0]] << RS1_OFFSET
+    enc_int |= REG_IDX[args[1]] << RS2_OFFSET
+    enc_int |= (immediate & 0b11111) << S_IMM40_OFFSET
+    enc_int |= (immediate >> 5) << S_IMMB5_OFFSET
   elif encoding == 'B':
     raise NotImplementedError
   elif encoding == 'U':
@@ -432,8 +442,22 @@ with open(sys.argv[1], 'r') as src:
 
       else:
         # instruction
-        parts = line.split()
-        encoded = encode_rv(parts[0], *parts[1:])
+        parts = line.split(',')
+        first = parts[0].split()
+        parts.pop(0)
+        assert len(first) == 1 or len(first) == 2
+        if len(first) == 2:
+            parts.insert(0, first[1])
+        name = first[0]
+        args = parts[1:]
+        if len(parts) > 1:
+          if parts[-1][-1] == ')':
+            indexing = args.pop(-1).split('(')
+            assert len(indexing) == 2
+            args.insert(0, indexing[1][:-1])
+            args.append(indexing[0])
+
+        encoded = encode_rv(name, *args)
         stdout.write(encoded)
         byte += len(encoded)
 
