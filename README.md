@@ -17,6 +17,13 @@ Speaking of memory, I want to have caches. Probably just L1 for now. In case I w
 ## Day 3
 Started writing a RISC-V assembler in Python. Other than that I've just been researching how real systems do all this stuff
 
-# Day 4
+## Day 4
 Assembler is starting to work. Only did R and I instructions for now, but the others should be just a couple lines of code
+
+## Day 19 (though I'm gonna consider it day 7)
+Took a break of about two weeks. Decided that it was annoying to have to be at home to be working on this. Started writing a utility to program the FPGA over JTAG around Wednesday of this past week(?).
+
+Coerced someone's Python FTDI library into working. Rewriting it would be too much hassles, though it's too bloated for my liking.
+
+Also, turns out there was a logic analyzer in the room across mine all along. It's heavy, loud, and older than me, but saved me a ton of time in realizing that the FTDI's clock output was inverted.
 
