@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 from pyftdi import jtag
+from pyftdi.ftdi import Ftdi
 from pyftdi.bits import BitSequence as bs
 from binascii import hexlify
+from array import array
 
 ### CONSTANTS
 
@@ -15,8 +17,8 @@ I_EXTEST    = bs('00000')
 I_SAMPLE    = bs('00001')
 I_USER1     = bs('00010')
 I_USER2     = bs('00011')
-I_CFG_OUT   = bs('00100')
-I_CFG_IN    = bs('00101')
+I_CFG_OUT   = bs('000100').reverse()
+I_CFG_IN    = bs('000101').reverse()
 I_INTEST    = bs('00111')
 I_INTEST    = bs('01000')
 I_USERCODE  = bs('01000')
@@ -80,6 +82,14 @@ def configure(self, url):
   self._ftdi.write_data(bytearray(b'\x82\x00\x00'))
 setattr(jtag.JtagController, 'configure', configure)
 
+def _write_bytes_raw(self, out, msb=False):
+  olen = len(out)-1
+  order = Ftdi.WRITE_BYTES_NVE_MSB if msb else Ftdi.WRITE_BYTES_NVE_LSB
+  cmd = array('B', (order, olen & 0xff, (olen >> 8) & 0xff))
+  cmd.extend(out)
+  self._stack_cmd(cmd)
+setattr(jtag.JtagController, '_write_bytes_raw', _write_bytes_raw)
+
 def rread(self, reg, bits=64):
   self.write_tms(TO_IDLE)
   self.write_tms(IDLE_TO_SHDR)
@@ -91,17 +101,15 @@ def readstat(self):
   self.write_tms(IDLE_TO_SHIR)
   self.write(I_CFG_IN)
   
-  self.write_tms(TO_IDLE)
-  self.write_tms(IDLE_TO_SHDR)
-  self._write_bytes_raw(W_SYNC + W_NOOP + W_readSTAT + W_DUMMY + W_DUMMY)
-  self.sync()
+  self.write_tms(bs('11100'))
+  data = W_SYNC + W_NOOP + W_readSTAT + W_NOOP + W_NOOP
+  self._write_bytes_raw(data[:-1], msb=True)
+  self.write(bs(bin(data[-1])))
 
-  self.write_tms(TO_IDLE)
-  self.write_tms(IDLE_TO_SHIR)
+  self.write_tms(bs('111100'))
   self.write(I_CFG_OUT)
+  self.write_tms(bs('11100'))
 
-  self.write_tms(TO_IDLE)
-  self.write_tms(IDLE_TO_SHDR)
   return hexlify(bytearray(self.shift_register(bs('0' * 32)).tobytes()))
 setattr(jtag.JtagController, 'readstat', readstat)
 
