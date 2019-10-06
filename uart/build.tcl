@@ -20,4 +20,4 @@ route_design
 write_checkpoint -force $OUTDIR/post_route.dcp
 
 write_debug_probes -force $OUTDIR/debug.ltx
-write_bitstream -force $OUTDIR/a.bit
+write_bitstream -g startupclk:jtagclk -force $OUTDIR/a.bit
