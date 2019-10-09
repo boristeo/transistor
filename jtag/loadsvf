@@ -1,0 +1,63 @@
+#!/usr/bin/env python3
+import sys
+
+
+# Xilinx assumes 1MHz TCK
+
+commands = [
+'ENDDR',	    # Specifies default end state for DR scan operations.
+'ENDIR',	    # Specifies default end state for IR scan operations.
+'FREQUENCY',	# Specifies maximum test clock frequency for IEEE 1149.1 bus operations.
+'HDR',	      # (Header Data Register) Specifies a header pattern that is prepended to the beginning of subsequent DR scan operations.
+'HIR',	      # (Header Instruction Register) Specifies a header pattern that is prepended to the beginning of subsequent IR scan operations.
+'PIO',	      # (Parallel Input/Output) Specifies a parallel test pattern.
+'PIOMAP', 	  # (Parallel Input/Output Map) Maps PIO column positions to a logical pin.
+'RUNTEST',	  # Forces the IEEE 1149.1 bus to a run state for a specified number of clocks or a specified time period.
+'SDR',	      # (Scan Data Register) Performs an IEEE 1149.1 Data Register scan.
+'SIR',	      # (Scan Instruction Register) Performs an IEEE 1149.1 Instruction Register scan.
+'STATE',	    # Forces the IEEE 1149.1 bus to a specified stable state.
+'TDR',        # (Trailer Data Register) Specifies a trailer pattern that is appended to the end of subsequent DR scan operations.
+'TIR',        # (Trailer Instruction Register) Specifies a trailer pattern that is appended to the end of subsequent IR scan operations.
+'TRST'  	    # (Test ReSeT) Controls the optional Test Reset line.
+]
+
+jtagstates = [
+'RESET',
+'IDLE',
+'DR',
+'DRSHIFT',
+'IRSHIFT',
+'DRPAUSE',
+'IRPAUSE',
+]
+
+enddr = 'RESET'
+endir = 'RESET'
+strict = True
+
+try:
+  if len(sys.argv) > 1:
+    src = open(sys.argv[-1])
+  else:
+    src = sys.stdin
+except:
+  print('Failed to open input file')
+  raise
+
+for i, line in enumerate(src, 1):
+  len_code = len(line)
+  exc = line.find('!')
+  dsl = line.find('//')
+  if exc >= 0 or dsl >= 0:
+    len_code = min(exc, dsl) + 1
+  parts = line[:len_code].strip().upper().split()
+  if len(parts) == 0:
+    continue
+  if strict and not parts[-1][-1] == ';':
+    raise Exception('Missing ; on line ' + str(i))
+  parts[-1] = parts[-1].rstrip(';')
+
+  if parts[0] not in commands:
+    raise Exception('Invalid command "' + parts[0] + '"on line ' + str(i))
+    
+  
