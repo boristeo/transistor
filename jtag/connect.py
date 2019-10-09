@@ -9,28 +9,35 @@ bs = BitSequence
 
 
 # By default Zynq has PL portion and PS portion in cascaded mode:
+# DAP FIRST IN CHAIN BY DEFAULT
 # PL TAP IR is 6 bits. PS DAP IR is 4 bits 
 # DAP bypassed when PS not in reset
 
 # Instructions expected with LSB first, so I reverse them and shift MSB first
 # Shift 1 on TMS in parallel with final bit
-I_EXTEST               = bs('000000').reverse()
-I_SAMPLE               = bs('000001').reverse()
-I_USER1                = bs('000010').reverse()
-I_USER2                = bs('000011').reverse()
-I_USER3                = bs('100010').reverse()
-I_USER4                = bs('100011').reverse()
-I_CFG_OUT              = bs('000100').reverse()
-I_CFG_IN               = bs('000101').reverse()
-I_USERCODE             = bs('001000').reverse()
-I_IDCODE               = bs('001001').reverse()
-I_ISC_ENABLE           = bs('010000').reverse()
-I_ISC_PROGRAM          = bs('010001').reverse()
-I_ISC_PROGRAM_SECURITY = bs('010010').reverse()
-I_ISC_NOOP             = bs('010100').reverse()
-I_ISC_READ             = bs('101011').reverse()
-I_ISC_DISABLE          = bs('010111').reverse()
-I_BYPASS               = bs('111111').reverse()
+TAP_EXTEST               = bs('000000').reverse()
+TAP_SAMPLE               = bs('000001').reverse()
+TAP_USER1                = bs('000010').reverse()
+TAP_USER2                = bs('000011').reverse()
+TAP_USER3                = bs('100010').reverse()
+TAP_USER4                = bs('100011').reverse()
+TAP_CFG_OUT              = bs('000100').reverse()
+TAP_CFG_IN               = bs('000101').reverse()
+TAP_USERCODE             = bs('001000').reverse()
+TAP_IDCODE               = bs('001001').reverse()
+TAP_ISC_ENABLE           = bs('010000').reverse()
+TAP_ISC_PROGRAM          = bs('010001').reverse()
+TAP_ISC_PROGRAM_SECURITY = bs('010010').reverse()
+TAP_ISC_NOOP             = bs('010100').reverse()
+TAP_ISC_READ             = bs('101011').reverse()
+TAP_ISC_DISABLE          = bs('010111').reverse()
+TAP_BYPASS               = bs('111111').reverse()
+
+DAP_ABORT                = bs('1000').reverse()
+DAP_DPACC                = bs('1010').reverse()
+DAP_APACC                = bs('1011').reverse()
+DAP_ARM_IDCODE           = bs('1110').reverse()
+DAP_BYPASS               = bs('1111').reverse()
 
 R_CRC                  = bs('00000')
 R_FAR                  = bs('00001')
@@ -223,33 +230,53 @@ class JTAG2232:
 
   def beginTest(self):
     self._change_state(TO_IDLE)
-    
-class ZynqJTAG(JTAG2232):
-  def readidcode(self):
-    # Can't get it working with IR for some reason
-    #self._change_state(TO_IR + TO_SHIFT)
-    #self.write(I_IDCODE)
-    self.reset()
-    self._change_state(TO_IDLE + TO_DR + TO_SHIFT)
-    idcode = self.shift_register(bs('0' * 64))
-    self._change_state(TO_STOP + TO_IDLE)
+
+  def endTest(self):
+    self._change_state(TO_IDLE)
+
+  def writeIR(self, code):
+    self._change_state(TO_IR + TO_SHIFT)
+    self.write(code)
+    self._change_state(TO_STOP)
+
+  def writeDR(self, code):
+    self._change_state(TO_DR + TO_SHIFT)
+    self.write(code, msb=True)
+    self._change_state(TO_STOP)
+
+  def readDR(self, bits):
+    self._change_state(TO_DR + TO_SHIFT)
+    idcode = self.shift_register(bs('0' * bits))
+    self._change_state(TO_STOP)
     return hexlify(bytearray(idcode.tobytes()))
 
-  def readstat(self):
-    self._change_state(TO_IR + TO_SHIFT)
-    self.write(I_CFG_IN)
-    self._change_state(TO_STOP + TO_DR + TO_SHIFT)
-    self.write(W_SYNC + W_NOOP + W_readSTAT + W_DUMMY + W_DUMMY, msb=True)
-    self._change_state(TO_STOP + TO_IR + TO_SHIFT)
-    self.write(I_CFG_OUT)
-    self._change_state(TO_STOP + TO_DR + TO_SHIFT)
-    stat = self.shift_register(bs('0' * 32))
-    self._change_state(TO_STOP + TO_IDLE)
-    return hexlify(bytearray(stat.tobytes()))
+    
+class ZynqJTAG(JTAG2232):
+  def writeIR(self, *, i_TAP=None, i_DAP=None):
+    assert i_TAP or i_DAP
+    if not i_TAP:
+      super().writeIR(TAP_BYPASS + i_DAP)
+    if not i_DAP:
+      super().writeIR(i_TAP + DAP_BYPASS)
+    else:
+      super().writeIR(i_TAP + i_DAP)
+
+  def readIDCODE(self):
+    # Can't get it working with IR for some reason
+    self.writeIR(i_TAP=TAP_IDCODE)
+    return self.readDR(32)
+
+  def readSTAT(self):
+    self.writeIR(i_TAP=TAP_CFG_IN)
+    self.writeDR(W_SYNC + W_NOOP + W_readSTAT + W_DUMMY + W_DUMMY)
+    self.writeIR(i_TAP=TAP_CFG_OUT)
+    return self.readDR(32)
+
 
 
 j = ZynqJTAG('ftdi://0x403:0x6010/1')
+
 j.beginTest()
-print('ID:  ', j.readidcode())
-print('STAT:', j.readstat())
-j.reset()
+print('ID:  ', j.readIDCODE())
+print('STAT:', j.readSTAT())
+j.endTest()
