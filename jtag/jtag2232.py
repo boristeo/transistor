@@ -62,7 +62,9 @@ class JTAG2232:
   def shift_register(self, out, use_last=False):
     if len(out) == 0:
       return BitSequence()
-    if not isinstance(out, BitSequence):
+    if isinstance(out, tuple):
+      out = BitSequence(value=out[1], length=out[0])
+    elif not isinstance(out, BitSequence):
       return Exception('Expect a BitSequence')
     length = len(out)
     if use_last:
@@ -102,7 +104,7 @@ class JTAG2232:
       bitseq = BitSequence(byte, length=bit_count)
       bs.append(bitseq)
     assert len(bs) == length
-    return bs
+    return bytearray(bs.tobytes())
 
   def _change_state(self, tms):
       """Change the TAP controller state"""
@@ -188,31 +190,26 @@ class JTAG2232:
     self._change_state(TO_IDLE)
     self._state = 'IDLE'
 
-  def scanIR(self, data, *, capture=True):
+  def scan_reg(self, reg, data, *, capture=True):
+    assert reg in ['IR', 'DR']
+
+    TO_R = TO_IR if reg == 'IR' else TO_DR
+    H = self.HIR if reg == 'IR' else self.HDR
+    T = self.TIR if reg == 'IR' else self.TDR
+    END = self.ENDIR if reg == 'IR' else self.ENDDR
+
     if self._state == 'RESET':
-      self._change_state(TO_IDLE + TO_IR + TO_SHIFT)
+      self._change_state(TO_IDLE + TO_R + TO_SHIFT)
     elif self._state in ['IDLE', 'IRSTOP', 'DRSTOP']:
-      self._change_state(TO_IR + TO_SHIFT)
+      self._change_state(TO_R + TO_SHIFT)
     else:
       raise Exception('Begin state ' + self._state + ' not supported')
-    self._state='IRSHIFT'
+    self._state = reg + 'SHIFT'
 
-    captured = self._scan_reg(self.HIR, data, self.TIR, self.ENDIR, capture=capture)
+    captured = self._scan_reg(H, data, T, END, capture=capture)
     if capture:
       return captured
 
-  def scanDR(self, data, *, capture=True):
-    if self._state == 'RESET':
-      self._change_state(TO_IDLE + TO_DR + TO_SHIFT)
-    elif self._state in ['IDLE', 'IRSTOP', 'DRSTOP']:
-      self._change_state(TO_DR + TO_SHIFT)
-    else:
-      raise Exception('Begin state ' + self._state + ' not supported')
-    self._state='DRSHIFT'
-
-    captured = self._scan_reg(self.HDR, data, self.TDR, self.ENDDR, capture=capture)
-    if capture:
-      return captured
 
   def _scan_reg(self, pre, data, post, endstate, *, capture):
     assert self._state in ['DRSHIFT', 'IRSHIFT']

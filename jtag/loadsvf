@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import sys
 from jtag2232 import JTAG2232 
+from binascii import hexlify
 
 
 commands = [
@@ -31,10 +32,19 @@ jtagstates = [
 'IRSTOP',
 ]
 
-
+# Utilities
 class SVFParseError(Exception):
   def __init__(self, line, msg):
     super().__init__('Line ' + str(line) + ': ' + msg)
+
+def hex_to_val(bitcount, s):
+  data_str = s.lstrip('(').rstrip(')')
+  if bitcount <= 64:
+    data = (bitcount, int(data_str, 16))
+  else:
+    if bitcount % 8 != 0: raise NotImplementedError('Long sends supported for full bytes only')
+    data = bytes.fromhex(data_str)
+  return data
 
 # State
 interactive = False
@@ -52,6 +62,9 @@ except:
   print('Failed to open input file')
   raise
 
+long_send = False
+long_send_command = None
+long_send_index = None
 
 for i, line in enumerate(src, 1):
   if interactive and line.strip() == 'nostrict':
@@ -66,16 +79,30 @@ for i, line in enumerate(src, 1):
     parts = line[:len_code].strip().upper().split()
     if len(parts) == 0:
       continue
-    if strict and not parts[-1][-1] == ';':
-      raise SVFParseError(i, 'Missing ;')
-    parts[-1] = parts[-1].rstrip(';')
 
-    if parts[0] not in commands:
+    if parts[-1] == ';':
+      parts.pop(-1)
+      long_send = False
+    elif parts[-1][-1] == ';':
+      parts[-1] = parts[-1].rstrip(';')
+      long_send = False
+    elif not strict:
+      long_send = False
+    elif parts[-1][-1] in '0123456789ABCDEF':
+      command = parts[0]
+      long_send = True
+    else:
+      raise SVFParseError(i, 'Missing ;')
+
+    if not long_send:
+      command = parts[0]
+
+    if command not in commands:
       raise SVFParseError(i, 'Invalid command "' + parts[0] + '"')
     
     # cases for each operation
-    if parts[0] == 'STATE':
-      assert 3 <= len(parts) <= 4
+    if command == 'STATE':
+      assert len(parts) == 2
       if parts[1] == 'RESET':
         jtag.reset()
       elif parts[1] == 'IDLE':
@@ -83,19 +110,49 @@ for i, line in enumerate(src, 1):
       else:
         raise SVFParseError(i, 'STATE "' + parts[1] + '" not supported')
 
-    elif parts[0] == 'TRST':
+    elif command == 'TRST':
       assert 2 <= len(parts) <= 3
       if parts[1] != 'OFF':
         raise SVFParseError(i, 'TRST not supported')
 
-    elif parts[0] in ['HDR', 'HIR', 'TDR', 'TIR']:
+    elif command in ['HDR', 'HIR', 'TDR', 'TIR']:
       assert 2 <= len(parts) <= 4
-      if parts[1] == '?':
+      if interactive and parts[1] == '?':
         print(jtag[parts[0]])
       assert 4 <= len(parts)
       if strict:
-        assert parts[3] == 'TDI'
+        assert parts[2] == 'TDI'
       jtag[parts[0]] = (int(parts[1]), int(parts[3].lstrip('(').rstrip(')'), 16))
+    
+    elif command in ['SDR', 'SIR']:
+      if long_send_index is None: # not continuing from prior send
+        assert 4 <= len(parts) <= 9
+        if strict:
+          assert parts[2] == 'TDI'
+        if len(parts) >= 4:
+          capture = True
+        bitcount = int(parts[1])
+        data = hex_to_val(bitcount, parts[3])
+        captured = jtag.scan_reg(command[1:], data, capture=capture)
+
+        if len(parts) >= 6:
+          assert parts[4] == 'TDO'
+          expected = hex_to_val(bitcount, parts[5])
+          print('Captured:', hexlify(captured), 'Expected:', hex(expected[1]))
+        if len(parts) >= 8:
+          if parts[6] == 'MASK':
+            pass
+          elif parts[6] == 'SMASK':
+            pass
+          else:
+            raise SVFParseError(i, 'Invalid mask type: ' + parts[6])
+        elif len(parts) >= 6:
+          pass
+          
+        if interactive and captured:
+          print(hexlify(captured))
+      elif long_send or long_send_index is 5:
+        raise NotImplementedError(i, 'Long parse not implemented')
 
   except Exception as e:
     print(e)

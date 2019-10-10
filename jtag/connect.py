@@ -90,16 +90,16 @@ class ZynqJTAG:
     self._jtag.TDR = bs('1')
 
   def readIDCODE(self):
-    self._jtag.scanIR(TAP_IDCODE, capture=False)
-    bits = self._jtag.scanDR(bs('0' * 32))
-    return hexlify(bytearray(bits.tobytes()))
+    self._jtag.scan_reg('IR', TAP_IDCODE, capture=False)
+    bits = self._jtag.scan_reg('DR', bs('0' * 32))
+    return hexlify(bits)
 
   def readSTAT(self):
-    self._jtag.scanIR(TAP_CFG_IN, capture=False)
-    self._jtag.scanDR(W_SYNC + W_NOOP + W_readSTAT + W_DUMMY + W_DUMMY, capture=False)
-    self._jtag.scanIR(TAP_CFG_OUT, capture=False)
-    bits = self._jtag.scanDR(bs('0' * 32))
-    return hexlify(bytearray(bits.tobytes()))
+    self._jtag.scan_reg('IR', TAP_CFG_IN, capture=False)
+    self._jtag.scan_reg('DR', W_SYNC + W_NOOP + W_readSTAT + W_DUMMY + W_DUMMY, capture=False)
+    self._jtag.scan_reg('IR', TAP_CFG_OUT, capture=False)
+    bits = self._jtag.scan_reg('DR', bs('0' * 32))
+    return hexlify(bits)
 
 
 j = ZynqJTAG('ftdi://0x403:0x6010/1')
