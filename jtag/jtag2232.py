@@ -38,6 +38,27 @@ class JTAG2232:
     self.ENDDR = 'DRSTOP'
     self.ENDIR = 'IRSTOP'
 
+  def __getitem__(self, item):
+    return {'HDR': self.HDR, 'TDR': self.TDR, 'HIR': self.HIR, 'TIR': self.TIR}[item]
+
+  def __setitem__(self, item, value):
+    if item in ['HDR', 'TDR', 'HIR', 'TIR']:
+      if isinstance(value, BitSequence):
+        val = value
+      elif isinstance(value, tuple):
+        val = bin(value[1])[-value[0]:]
+      else:
+        val = BitSequence(value)
+
+      if item == 'HDR':
+        self.HDR = val
+      elif item == 'TDR':
+        self.TDR = val
+      elif item == 'HIR':
+        self.HIR = val
+      elif item == 'TIR':
+        self.TIR = val
+
   def shift_register(self, out, use_last=False):
     if len(out) == 0:
       return BitSequence()
@@ -161,6 +182,11 @@ class JTAG2232:
   def reset(self):
     self._change_state(TO_RESET)
     self._state = 'RESET'
+
+  def idle(self):
+    assert self._state in ['RESET', 'IRSTOP', 'DRSTOP']
+    self._change_state(TO_IDLE)
+    self._state = 'IDLE'
 
   def scanIR(self, data, *, capture=True):
     if self._state == 'RESET':

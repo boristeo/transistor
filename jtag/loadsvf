@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 import sys
+from jtag2232 import JTAG2232 
 
-
-# Xilinx assumes 1MHz TCK
 
 commands = [
 'ENDDR',	    # Specifies default end state for DR scan operations.
@@ -24,40 +23,81 @@ commands = [
 jtagstates = [
 'RESET',
 'IDLE',
-'DR',
 'DRSHIFT',
 'IRSHIFT',
 'DRPAUSE',
 'IRPAUSE',
+'DRSTOP',
+'IRSTOP',
 ]
 
-enddr = 'RESET'
-endir = 'RESET'
-strict = True
 
+class SVFParseError(Exception):
+  def __init__(self, line, msg):
+    super().__init__('Line ' + str(line) + ': ' + msg)
+
+# State
+interactive = False
+strict = True
+jtag = JTAG2232('ftdi://0x403:0x6010/1')
+
+# Open input file or interpret from stdin
 try:
   if len(sys.argv) > 1:
     src = open(sys.argv[-1])
   else:
     src = sys.stdin
+    interactive = True
 except:
   print('Failed to open input file')
   raise
 
-for i, line in enumerate(src, 1):
-  len_code = len(line)
-  exc = line.find('!')
-  dsl = line.find('//')
-  if exc >= 0 or dsl >= 0:
-    len_code = min(exc, dsl) + 1
-  parts = line[:len_code].strip().upper().split()
-  if len(parts) == 0:
-    continue
-  if strict and not parts[-1][-1] == ';':
-    raise Exception('Missing ; on line ' + str(i))
-  parts[-1] = parts[-1].rstrip(';')
 
-  if parts[0] not in commands:
-    raise Exception('Invalid command "' + parts[0] + '"on line ' + str(i))
+for i, line in enumerate(src, 1):
+  if interactive and line.strip() == 'nostrict':
+    strict = False
+    continue
+  try:
+    len_code = len(line)
+    exc = line.find('!')
+    dsl = line.find('//')
+    if exc >= 0 or dsl >= 0:
+      len_code = min(exc, dsl) + 1
+    parts = line[:len_code].strip().upper().split()
+    if len(parts) == 0:
+      continue
+    if strict and not parts[-1][-1] == ';':
+      raise SVFParseError(i, 'Missing ;')
+    parts[-1] = parts[-1].rstrip(';')
+
+    if parts[0] not in commands:
+      raise SVFParseError(i, 'Invalid command "' + parts[0] + '"')
     
-  
+    # cases for each operation
+    if parts[0] == 'STATE':
+      assert 3 <= len(parts) <= 4
+      if parts[1] == 'RESET':
+        jtag.reset()
+      elif parts[1] == 'IDLE':
+        jtag.idle()
+      else:
+        raise SVFParseError(i, 'STATE "' + parts[1] + '" not supported')
+
+    elif parts[0] == 'TRST':
+      assert 2 <= len(parts) <= 3
+      if parts[1] != 'OFF':
+        raise SVFParseError(i, 'TRST not supported')
+
+    elif parts[0] in ['HDR', 'HIR', 'TDR', 'TIR']:
+      assert 2 <= len(parts) <= 4
+      if parts[1] == '?':
+        print(jtag[parts[0]])
+      assert 4 <= len(parts)
+      if strict:
+        assert parts[3] == 'TDI'
+      jtag[parts[0]] = (int(parts[1]), int(parts[3].lstrip('(').rstrip(')'), 16))
+
+  except Exception as e:
+    print(e)
+    if not interactive:
+      raise
