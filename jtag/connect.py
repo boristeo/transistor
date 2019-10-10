@@ -100,16 +100,29 @@ class JTAG2232:
     self._ftdi.open_mpsse_from_url(url, direction=0, frequency=1)
     # Configure MPSSE, frequency and pinmode
     self._ftdi.write_data(bytearray(b'\x8a\x97\x8d'))
-    self._ftdi.write_data(bytearray(b'\x86\xdb\x05'))
+    # TCK = 60MHz /((1 + [(1 + (0x00) * 256) | (0x1e)])*2)
+    self._ftdi.write_data(bytearray(b'\x86\x1e\x00'))
     self._ftdi.write_data(bytearray(b'\x80\xc8\xfb'))
     self._ftdi.write_data(bytearray(b'\x82\x00\x00'))
 
     self._last = None
     self._write_buff = array('B')
+    self._state = 'UNKNOWN'
     if not noreset:
       self.reset()
+    
+    # Chain setup
+    self.HIR = bs()
+    self.TIR = bs()
+    self.HDR = bs()
+    self.TDR = bs()
+
+    self.ENDDR = 'DRSTOP'
+    self.ENDIR = 'IRSTOP'
 
   def shift_register(self, out, use_last=False):
+    if len(out) == 0:
+      return BitSequence()
     if not isinstance(out, BitSequence):
       return Exception('Expect a BitSequence')
     length = len(out)
@@ -171,6 +184,8 @@ class JTAG2232:
       self._sync()
 
   def write(self, out, use_last=True, msb=True):
+    if len(out) == 0:
+      return
     if isinstance(out, bytes):
       if not use_last:
         self._write_bytes(out, msb=msb)
@@ -224,59 +239,87 @@ class JTAG2232:
     if self._write_buff:
       self._ftdi.write_data(self._write_buff)
       self._write_buff = array('B')
-
+  
   def reset(self):
     self._change_state(TO_RESET)
+    self._state = 'RESET'
 
-  def beginTest(self):
-    self._change_state(TO_IDLE)
+  def scanIR(self, data, *, capture=True):
+    if self._state == 'RESET':
+      self._change_state(TO_IDLE + TO_IR + TO_SHIFT)
+    elif self._state in ['IDLE', 'IRSTOP', 'DRSTOP']:
+      self._change_state(TO_IR + TO_SHIFT)
+    else:
+      raise Exception('Begin state ' + self._state + ' not supported')
+    self._state='IRSHIFT'
 
-  def endTest(self):
-    self._change_state(TO_IDLE)
+    captured = self._scan_reg(self.HIR, data, self.TIR, self.ENDIR, capture=capture)
+    if capture:
+      return captured
 
-  def writeIR(self, code):
-    self._change_state(TO_IR + TO_SHIFT)
-    self.write(code)
-    self._change_state(TO_STOP)
+  def scanDR(self, data, *, capture=True):
+    if self._state == 'RESET':
+      self._change_state(TO_IDLE + TO_DR + TO_SHIFT)
+    elif self._state in ['IDLE', 'IRSTOP', 'DRSTOP']:
+      self._change_state(TO_DR + TO_SHIFT)
+    else:
+      raise Exception('Begin state ' + self._state + ' not supported')
+    self._state='DRSHIFT'
 
-  def writeDR(self, code):
-    self._change_state(TO_DR + TO_SHIFT)
-    self.write(code, msb=True)
-    self._change_state(TO_STOP)
+    captured = self._scan_reg(self.HDR, data, self.TDR, self.ENDDR, capture=capture)
+    if capture:
+      return captured
 
-  def readDR(self, bits):
-    self._change_state(TO_DR + TO_SHIFT)
-    idcode = self.shift_register(bs('0' * bits))
-    self._change_state(TO_STOP)
-    return hexlify(bytearray(idcode.tobytes()))
+  def _scan_reg(self, pre, data, post, endstate, *, capture):
+    assert self._state in ['DRSHIFT', 'IRSHIFT']
+
+    self.write(pre, use_last=False)
+    last_in_data = len(post) == 0
+    if capture:
+      captured = self.shift_register(data, use_last=last_in_data)
+    else:
+      self.write(data, msb=True, use_last=last_in_data)
+    self.write(post, use_last=True)
+
+    if endstate in ['IRSTOP', 'DRSTOP']:
+      assert self._state[:2] == endstate[:2] 
+      self._change_state(TO_STOP)
+    elif endstate == 'IDLE':
+      self._change_state(TO_STOP + TO_IDLE)
+    elif endstate == 'RESET':
+      self._change_state(TO_RESET)
+    elif endstate == self._state:
+      pass
+    else:
+      raise Exception('End state ' + endstate + ' not supported')
+
+    self._state = endstate
+
+    if capture:
+      return captured
 
     
-class ZynqJTAG(JTAG2232):
-  def writeIR(self, *, i_TAP=None, i_DAP=None):
-    assert i_TAP or i_DAP
-    if not i_TAP:
-      super().writeIR(TAP_BYPASS + i_DAP)
-    if not i_DAP:
-      super().writeIR(i_TAP + DAP_BYPASS)
-    else:
-      super().writeIR(i_TAP + i_DAP)
+class ZynqJTAG:
+  def __init__(self, url):
+    self._jtag = JTAG2232(url)
+    self._jtag.HIR = bs()
+    self._jtag.TIR = bs('1111')
+    self._jtag.HDR = bs()
+    self._jtag.TDR = bs('1')
 
   def readIDCODE(self):
-    # Can't get it working with IR for some reason
-    self.writeIR(i_TAP=TAP_IDCODE)
-    return self.readDR(32)
+    self._jtag.scanIR(TAP_IDCODE, capture=False)
+    bits = self._jtag.scanDR(bs('0' * 32))
+    return hexlify(bytearray(bits.tobytes()))
 
   def readSTAT(self):
-    self.writeIR(i_TAP=TAP_CFG_IN)
-    self.writeDR(W_SYNC + W_NOOP + W_readSTAT + W_DUMMY + W_DUMMY)
-    self.writeIR(i_TAP=TAP_CFG_OUT)
-    return self.readDR(32)
-
-
+    self._jtag.scanIR(TAP_CFG_IN, capture=False)
+    self._jtag.scanDR(W_SYNC + W_NOOP + W_readSTAT + W_DUMMY + W_DUMMY, capture=False)
+    self._jtag.scanIR(TAP_CFG_OUT, capture=False)
+    bits = self._jtag.scanDR(bs('0' * 32))
+    return hexlify(bytearray(bits.tobytes()))
 
 j = ZynqJTAG('ftdi://0x403:0x6010/1')
 
-j.beginTest()
 print('ID:  ', j.readIDCODE())
 print('STAT:', j.readSTAT())
-j.endTest()
