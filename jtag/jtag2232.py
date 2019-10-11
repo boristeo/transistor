@@ -208,7 +208,7 @@ class JTAG2232:
     self._change_state(TO_IDLE)
     self._state = 'IDLE'
 
-  def scan_reg(self, reg, data, *, capture=True):
+  def scan_reg(self, reg, data, *, capture):
     assert reg in ['IR', 'DR']
 
     TO_R = TO_IR if reg == 'IR' else TO_DR

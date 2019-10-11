@@ -91,14 +91,14 @@ class ZynqJTAG:
 
   def readIDCODE(self):
     self._jtag.scan_reg('IR', TAP_IDCODE, capture=False)
-    bits = self._jtag.scan_reg('DR', bs('0' * 32))
+    bits = self._jtag.scan_reg('DR', bs('0' * 32), capture=True)
     return hexlify(bits)
 
   def readSTAT(self):
     self._jtag.scan_reg('IR', TAP_CFG_IN, capture=False)
     self._jtag.scan_reg('DR', W_SYNC + W_NOOP + W_readSTAT + W_DUMMY + W_DUMMY, capture=False)
     self._jtag.scan_reg('IR', TAP_CFG_OUT, capture=False)
-    bits = self._jtag.scan_reg('DR', bs('0' * 32))
+    bits = self._jtag.scan_reg('DR', bs('0' * 32), capture=True)
     return hexlify(bits)
 
 

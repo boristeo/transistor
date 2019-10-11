@@ -125,8 +125,7 @@ for i, line in enumerate(src, 1):
         assert 4 <= len(parts) <= 9
         if strict:
           assert parts[2] == 'TDI'
-        if len(parts) >= 4:
-          capture = True
+        capture = len(parts) > 4
         bitcount = int(parts[1])
         data = hex_to_val(parts[3])
         captured = jtag.scan_reg(command[1:], (bitcount, data), capture=capture)
