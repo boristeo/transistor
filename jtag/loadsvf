@@ -39,8 +39,9 @@ class SVFParseError(Exception):
 
 def hex_to_val(bitcount, s):
   data_str = s.lstrip('(').rstrip(')')
+  print(data_str)
   if bitcount <= 64:
-    data = (bitcount, int(data_str, 16))
+    data = (bitcount, bytes.fromhex(data_str))
   else:
     if bitcount % 8 != 0: raise NotImplementedError('Long sends supported for full bytes only')
     data = bytes.fromhex(data_str)

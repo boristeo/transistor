@@ -30,10 +30,10 @@ class JTAG2232:
       self.reset()
     
     # Chain setup
-    self.HIR = BitSequence()
-    self.TIR = BitSequence()
-    self.HDR = BitSequence()
-    self.TDR = BitSequence()
+    self.HIR = b''
+    self.TIR = b''
+    self.HDR = b''
+    self.TDR = b''
 
     self.ENDDR = 'DRSTOP'
     self.ENDIR = 'IRSTOP'
@@ -124,43 +124,56 @@ class JTAG2232:
       self._stack_cmd(cmd)
       self._sync()
 
-  def write(self, out, use_last=True, msb=True):
-    if len(out) == 0:
-      return
-    if isinstance(out, bytes):
-      if not use_last:
-        self._write_bytes(out, msb=msb)
-        return
-      if len(out) > 1:
-        self._write_bytes(out[:-1], msb=msb)
-      out = BitSequence(value=out[-1])
-      if msb:
-        out.reverse()
-    elif not isinstance(out, BitSequence):
-      out = BitSequence(out)
-    if use_last:
-      (out, self._last) = (out[:-1], bool(out[-1]))
-    byte_count = len(out)//8
-    if byte_count > 0 and not msb:
-      raise Exception('ONLY MSB SUPPORTED FOR BITS')
-    pos = 8*byte_count
-    bit_count = len(out)-pos
-    if byte_count:
-      self._write_bytes(out[:pos].tobytes(msby=True))
-    if bit_count:
-      self._write_bits(out[pos:])
+  def write(self, data, *, use_last=True, reversebytes=False, reversebits=False):
+    if isinstance(data, tuple):
+      assert len(data) == 2
+      assert isinstance(data[0], int)
+      assert isinstance(data[1], bytearray) or isinstance(data[1], bytes)
+      bitcount = data[0]
+      data = data[1]
+    elif isinstance(data, bytes) or isinstance(data, bytearray):
+      bitcount = 8 * len(data) 
+    elif isinstance(data, BitSequence):
+      bitcount = len(data)
+      print('Warning: writing a bitsequence: ' + str(data))
+      data = data.tobytes(msby=True)
+    else:
+      raise Exception('Data could not be written: ' + str(data))
 
-  def _write_bytes(self, out, msb=False):
-    olen = len(out)-1
-    order = Ftdi.WRITE_BYTES_NVE_MSB if msb else Ftdi.WRITE_BYTES_NVE_LSB
+    bytecount = len(data)
+    assert (bitcount <= 8 * bytecount)
+
+    bitcount -= 1 if use_last else 0
+    full_bytes = bitcount // 8
+    remainder = bitcount - 8 * full_bytes
+
+    lastbyteindex = full_bytes if not reversebytes else bytecount - full_bytes - 1
+  
+    if use_last:
+      lastbitmask = (1 << (7 - remainder)) if not reversebits else (1 << remainder)
+      self._last = 1 if data[lastbyteindex] & lastbitmask else 0
+
+    if full_bytes > 0:
+      self._write_bytes(data[:full_bytes] if not reversebytes else data[bytecount-full_bytes:], reverse=reversebytes)
+    if remainder > 0:
+      self._write_bits(data[lastbyteindex], count=remainder, reverse=reversebits)
+
+  def _write_bytes(self, out, reverse=False):
+    olen = len(out) - 1
+    order = Ftdi.WRITE_BYTES_NVE_MSB if not reverse else Ftdi.WRITE_BYTES_NVE_LSB
     cmd = array('B', (order, olen & 0xff, (olen >> 8) & 0xff))
     cmd.extend(out)
     self._stack_cmd(cmd)
 
-  def _write_bits(self, out):
-    length = len(out)
-    byte = out.tobyte()
-    cmd = array('B', (Ftdi.WRITE_BITS_NVE_LSB, length-1, byte))
+  def _write_bits(self, out, count, reverse=False):
+    assert count < 8
+    order = Ftdi.WRITE_BITS_NVE_MSB if not reverse else Ftdi.WRITE_BITS_NVE_LSB
+    if isinstance(out, BitSequence):
+      byte = out.tobyte()
+      count = len(out)
+    else:
+      byte = out
+    cmd = array('B', (order, count-1, byte))
     self._stack_cmd(cmd)
 
   def _stack_cmd(self, cmd):
@@ -206,21 +219,21 @@ class JTAG2232:
       raise Exception('Begin state ' + self._state + ' not supported')
     self._state = reg + 'SHIFT'
 
-    captured = self._scan_reg(H, data, T, END, capture=capture)
+    captured = self._scan_reg(H, data, T, END, capture=capture, reverse=(reg=='IR'))
     if capture:
       return captured
 
 
-  def _scan_reg(self, pre, data, post, endstate, *, capture):
+  def _scan_reg(self, pre, data, post, endstate, *, capture, reverse):
     assert self._state in ['DRSHIFT', 'IRSHIFT']
 
-    self.write(pre, use_last=False)
+    self.write(pre, use_last=False, reversebits=reverse, reversebytes=reverse)
     last_in_data = len(post) == 0
     if capture:
       captured = self.shift_register(data, use_last=last_in_data)
     else:
-      self.write(data, msb=True, use_last=last_in_data)
-    self.write(post, use_last=True)
+      self.write(data, use_last=last_in_data, reversebits=reverse, reversebytes=reverse)
+    self.write(post, use_last=True, reversebits=reverse, reversebytes=reverse)
 
     if endstate in ['IRSTOP', 'DRSTOP']:
       assert self._state[:2] == endstate[:2] 
