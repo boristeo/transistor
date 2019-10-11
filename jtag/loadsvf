@@ -2,6 +2,7 @@
 import sys
 from jtag2232 import JTAG2232 
 from binascii import hexlify
+import decimal
 
 
 commands = [
@@ -113,12 +114,15 @@ for i, line in enumerate(src, 1):
       assert 2 <= len(parts) <= 6
       if interactive and parts[1] == '?':
         print(jtag[parts[0]])
-      assert 4 <= len(parts)
-      if strict:
-        assert parts[2] == 'TDI'
-      bitcount = int(parts[1])
-      data = hex_to_val(parts[3])
-      jtag[parts[0]] = (bitcount, data)
+      if int(parts[1]) == 0:
+        jtag[parts[0]] = (0, b'')
+      else:
+        assert len(parts) >= 4
+        if strict:
+          assert parts[2] == 'TDI'
+        bitcount = int(parts[1])
+        data = hex_to_val(parts[3])
+        jtag[parts[0]] = (bitcount, data)
     
     elif command in ['SDR', 'SIR']:
       if long_send_index is None: # not continuing from prior send
@@ -147,7 +151,27 @@ for i, line in enumerate(src, 1):
         if interactive and captured:
           print(hexlify(captured))
       elif long_send or long_send_index is 5:
-        raise NotImplementedError(i, 'Long parse not implemented')
+        raise NotImplementedError('Long parse not implemented')
+
+    elif command == 'FREQUENCY':
+      assert len(parts) >= 3
+      if parts[2] == 'HZ':
+        hz = int(decimal.Decimal(parts[1]))
+      else:
+        raise NotImplementedError('Unit for frequency not implemented')
+      jtag.set_freq(hz)
+
+    elif command == 'RUNTEST':
+      assert len(parts) >= 3
+      if parts[2] == 'TCK':
+        clks = int(parts[1])
+      elif parts[2] == 'SEC':
+        secs = decimal.Decimal(parts[1])
+        clks = int(secs * jtag.freq)
+      else:
+        raise NotImplementedError('Unit for runtest not implemented')
+      jtag.idle()
+      jtag.write(bytes(clks // 8), use_last=False)
 
   except Exception as e:
     print(e)

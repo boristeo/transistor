@@ -17,9 +17,7 @@ class JTAG2232:
     self._ftdi = Ftdi()
     self._ftdi.open_mpsse_from_url(url, direction=0, frequency=1)
     # Configure MPSSE, frequency and pinmode
-    self._ftdi.write_data(bytearray(b'\x8a\x97\x8d'))
-    # TCK = 60MHz /((1 + [(1 + (0x00) * 256) | (0x1e)])*2)
-    self._ftdi.write_data(bytearray(b'\x86\x1e\x00'))
+    self.set_freq(10000000)
     self._ftdi.write_data(bytearray(b'\x80\xc8\xfb'))
     self._ftdi.write_data(bytearray(b'\x82\x00\x00'))
 
@@ -35,9 +33,21 @@ class JTAG2232:
     self.HDR = b''
     self.TDR = b''
 
-    self.ENDDR = 'DRSTOP'
-    self.ENDIR = 'IRSTOP'
+    self.ENDDR = 'IDLE'
+    self.ENDIR = 'IDLE'
 
+  def set_freq(self, freq):
+    base = 60000000
+    self._ftdi.write_data(bytearray(b'\x8a\x97\x8d'))
+    divider = base // freq
+    # TCK = 60MHz /((1 + [(1 + (0x00) * 256) | (0x1e)])*2)
+    divider = divider // 2 - 1
+    high = divider >> 8
+    assert high < 0xff
+    low = divider & 0xff
+    self._ftdi.write_data(bytearray([0x86, low, high]))
+    self.freq = freq
+  
   def __getitem__(self, item):
     return {'HDR': self.HDR, 'TDR': self.TDR, 'HIR': self.HIR, 'TIR': self.TIR}[item]
 
@@ -204,6 +214,8 @@ class JTAG2232:
     self._state = 'RESET'
 
   def idle(self):
+    if self._state == 'IDLE':
+      return
     assert self._state in ['RESET', 'IRSTOP', 'DRSTOP']
     self._change_state(TO_IDLE)
     self._state = 'IDLE'
