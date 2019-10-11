@@ -137,6 +137,18 @@ class JTAG2232:
       self._sync()
 
   def write(self, data, *, use_last=True, reversebytes=False, reversebits=False):
+    if (isinstance(data, bytes) or isinstance(data, bytearray)) and len(data) > 1000:
+      bytecount = len(data)
+      sent_bytes = 0
+      while sent_bytes < bytecount:
+        chunk_size = 1000 if 1000 < bytecount - sent_bytes else bytecount - sent_bytes
+        self._write(data[sent_bytes:sent_bytes + chunk_size], use_last=use_last, reversebytes=reversebytes, reversebits=reversebits)
+        sent_bytes += chunk_size
+    else:
+      self._write(data, use_last=use_last, reversebytes=reversebytes, reversebits=reversebits)
+        
+
+  def _write(self, data, *, use_last=True, reversebytes=False, reversebits=False):
     if isinstance(data, tuple):
       assert len(data) == 2
       assert isinstance(data[0], int)

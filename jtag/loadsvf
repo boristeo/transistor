@@ -39,7 +39,7 @@ class SVFParseError(Exception):
     super().__init__('Line ' + str(line) + ': ' + msg)
 
 def hex_to_val(s):
-  return bytes.fromhex(s.lstrip('(').rstrip(')'))
+  return bytearray.fromhex(s.lstrip('(').rstrip(')'))
 
 # State
 interactive = False
@@ -60,6 +60,7 @@ except:
 long_send = False
 long_send_command = None
 long_send_index = None
+long_send_data = None
 
 for i, line in enumerate(src, 1):
   if interactive and line.strip() == 'nostrict':
@@ -83,14 +84,16 @@ for i, line in enumerate(src, 1):
       long_send = False
     elif not strict:
       long_send = False
-    elif parts[-1][-1] in '0123456789ABCDEF':
-      command = parts[0]
+    elif line.count('(') > line.count(')'):
       long_send = True
+    elif long_send:
+      pass
     else:
       raise SVFParseError(i, 'Missing ;')
 
-    if not long_send:
-      command = parts[0]
+    command = long_send_command or parts[0]
+    if long_send:
+      long_send_command = command
 
     if command not in commands:
       raise SVFParseError(i, 'Invalid command "' + parts[0] + '"')
@@ -125,8 +128,10 @@ for i, line in enumerate(src, 1):
         jtag[parts[0]] = (bitcount, data)
     
     elif command in ['SDR', 'SIR']:
-      if long_send_index is None: # not continuing from prior send
-        assert 4 <= len(parts) <= 9
+      if not long_send and long_send_index is None: # not continuing from prior send
+        if not 4 <= len(parts) <= 8:
+          print(i, line)
+          assert False
         if strict:
           assert parts[2] == 'TDI'
         capture = len(parts) > 4
@@ -137,7 +142,10 @@ for i, line in enumerate(src, 1):
         if len(parts) >= 6:
           assert parts[4] == 'TDO'
           expected = hex_to_val(parts[5])
-          print('Captured:', hexlify(captured), 'Expected:', hexlify(expected))
+          if len(parts) < 8:
+            print('Captured:', hexlify(captured), 'Expected:', hexlify(expected))
+          else:
+            print('Captured:', hexlify(captured), 'Expected:', hexlify(expected), parts[6], parts[7])
         if len(parts) >= 8:
           if parts[6] == 'MASK':
             pass
@@ -148,9 +156,21 @@ for i, line in enumerate(src, 1):
         elif len(parts) >= 6:
           pass
           
-        if interactive and captured:
-          print(hexlify(captured))
-      elif long_send or long_send_index is 5:
+      elif long_send and long_send_index is None:
+        bitcount = int(parts[1])
+        assert bitcount % 8 == 0
+        long_send_data = hex_to_val(parts[3])
+        long_send_index = 5
+      elif long_send and long_send_index == 5:
+        long_send_data.extend(hex_to_val(parts[0]))
+      elif not long_send and long_send_index == 5:
+        long_send_data.extend(hex_to_val(parts[0]))
+        print('Sending %d bytes' % len(long_send_data))
+        jtag.scan_reg(command[1:], long_send_data, capture=False)
+        long_send_index = None
+        long_send_data = None
+        long_send_command = None 
+      else:
         raise NotImplementedError('Long parse not implemented')
 
     elif command == 'FREQUENCY':
