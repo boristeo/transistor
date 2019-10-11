@@ -44,26 +44,28 @@ class JTAG2232:
   def __setitem__(self, item, value):
     if item in ['HDR', 'TDR', 'HIR', 'TIR']:
       if isinstance(value, BitSequence):
-        val = value
+        pass
       elif isinstance(value, tuple):
-        val = bin(value[1])[-value[0]:]
+        assert len(value) == 2
+        assert isinstance(value[0], int)
+        assert isinstance(value[1], bytes) or isinstance(value[1], bytearray)
       else:
-        val = BitSequence(value)
+        value = BitSequence(value)
 
       if item == 'HDR':
-        self.HDR = val
+        self.HDR = value
       elif item == 'TDR':
-        self.TDR = val
+        self.TDR = value
       elif item == 'HIR':
-        self.HIR = val
+        self.HIR = value
       elif item == 'TIR':
-        self.TIR = val
+        self.TIR = value
 
   def shift_register(self, out, use_last=False):
     if len(out) == 0:
-      return BitSequence()
+      return bytearray()
     if isinstance(out, tuple):
-      out = BitSequence(value=out[1], length=out[0])
+      out = BitSequence(bytes_=out[1])[:out[0]]
     elif not isinstance(out, BitSequence):
       return Exception('Expect a BitSequence')
     length = len(out)
@@ -138,7 +140,10 @@ class JTAG2232:
       print('Warning: writing a bitsequence: ' + str(data))
       data = data.tobytes(msby=True)
     else:
-      raise Exception('Data could not be written: ' + str(data))
+      raise Exception('Data type incorrect for writing: ' + str(data))
+
+    if bitcount <= 0:
+      return
 
     bytecount = len(data)
     assert (bitcount <= 8 * bytecount)

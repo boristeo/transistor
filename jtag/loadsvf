@@ -37,15 +37,8 @@ class SVFParseError(Exception):
   def __init__(self, line, msg):
     super().__init__('Line ' + str(line) + ': ' + msg)
 
-def hex_to_val(bitcount, s):
-  data_str = s.lstrip('(').rstrip(')')
-  print(data_str)
-  if bitcount <= 64:
-    data = (bitcount, bytes.fromhex(data_str))
-  else:
-    if bitcount % 8 != 0: raise NotImplementedError('Long sends supported for full bytes only')
-    data = bytes.fromhex(data_str)
-  return data
+def hex_to_val(s):
+  return bytes.fromhex(s.lstrip('(').rstrip(')'))
 
 # State
 interactive = False
@@ -117,13 +110,15 @@ for i, line in enumerate(src, 1):
         raise SVFParseError(i, 'TRST not supported')
 
     elif command in ['HDR', 'HIR', 'TDR', 'TIR']:
-      assert 2 <= len(parts) <= 4
+      assert 2 <= len(parts) <= 6
       if interactive and parts[1] == '?':
         print(jtag[parts[0]])
       assert 4 <= len(parts)
       if strict:
         assert parts[2] == 'TDI'
-      jtag[parts[0]] = (int(parts[1]), int(parts[3].lstrip('(').rstrip(')'), 16))
+      bitcount = int(parts[1])
+      data = hex_to_val(parts[3])
+      jtag[parts[0]] = (bitcount, data)
     
     elif command in ['SDR', 'SIR']:
       if long_send_index is None: # not continuing from prior send
@@ -133,13 +128,13 @@ for i, line in enumerate(src, 1):
         if len(parts) >= 4:
           capture = True
         bitcount = int(parts[1])
-        data = hex_to_val(bitcount, parts[3])
-        captured = jtag.scan_reg(command[1:], data, capture=capture)
+        data = hex_to_val(parts[3])
+        captured = jtag.scan_reg(command[1:], (bitcount, data), capture=capture)
 
         if len(parts) >= 6:
           assert parts[4] == 'TDO'
-          expected = hex_to_val(bitcount, parts[5])
-          print('Captured:', hexlify(captured), 'Expected:', hex(expected[1]))
+          expected = hex_to_val(parts[5])
+          print('Captured:', hexlify(captured), 'Expected:', hexlify(expected))
         if len(parts) >= 8:
           if parts[6] == 'MASK':
             pass
