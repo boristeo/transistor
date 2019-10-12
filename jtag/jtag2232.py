@@ -55,7 +55,7 @@ class JTAG2232:
     self.freq = freq
   
   def runtest(self, clocks):
-    assert self._state in ['RESET', 'IDLE']
+    assert self._state in ['RESET', 'IDLE', 'RUN']
     while clocks > 7: 
       chunk = 0xffff if 524288 < clocks else clocks // 8 - 1
       self._stack_cmd(array('B', [0x8f, chunk & 0xff, chunk >> 8]))
@@ -251,9 +251,9 @@ class JTAG2232:
     self._state = 'RESET'
 
   def idle(self):
-    if self._state == 'IDLE':
+    if self._state in ['IDLE', 'RUN']:
       return
-    assert self._state in ['RESET', 'IRSTOP', 'DRSTOP']
+    assert self._state in ['RESET', 'IRUPDATE', 'IRUPDATE']
     self._change_state(TO_IDLE)
     self._state = 'IDLE'
 
@@ -267,7 +267,7 @@ class JTAG2232:
 
     if self._state == 'RESET':
       self._change_state(TO_IDLE + TO_R + TO_SHIFT)
-    elif self._state in ['IDLE', 'IRSTOP', 'DRSTOP']:
+    elif self._state in ['IDLE', 'IRUPDATE', 'IRUPDATE']:
       self._change_state(TO_R + TO_SHIFT)
     else:
       raise Exception('Begin state ' + self._state + ' not supported')
@@ -289,10 +289,10 @@ class JTAG2232:
       self.write(data, use_last=last_in_data, reversebits=reverse, reversebytes=reverse)
     self.write(post, use_last=True, reversebits=reverse, reversebytes=reverse)
 
-    if endstate in ['IRSTOP', 'DRSTOP']:
+    if endstate in ['IRUPDATE', 'IRUPDATE']:
       assert self._state[:2] == endstate[:2] 
       self._change_state(TO_STOP)
-    elif endstate == 'IDLE':
+    elif endstate in ['IDLE', 'RUN']:
       self._change_state(TO_STOP + TO_IDLE)
     elif endstate == 'RESET':
       self._change_state(TO_RESET)

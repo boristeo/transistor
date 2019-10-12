@@ -23,14 +23,22 @@ commands = [
 ]
 
 jtagstates = [
-'RESET',
-'IDLE',
-'DRSHIFT',
-'IRSHIFT',
-'DRPAUSE',
-'IRPAUSE',
-'DRSTOP',
-'IRSTOP',
+'RESET',      # stable (with TMS high); acts as if TRST were pulsed
+'RUN', 'IDLE',   # stable; don’t assume this always means IDLE
+'DRSELECT', 
+'DRCAPTURE', 
+'DRSHIFT',    # stable; TDI/TDO shifting through the data register
+'DREXIT1', 
+'DRPAUSE',    # stable; data register ready for update or more shifting
+'DREXIT2', 
+'DRUPDATE', 
+'IRSELECT', 
+'IRCAPTURE', 
+'IRSHIFT',    # stable; TDI/TDO shifting through the instruction register
+'IREXIT1', 
+'IRPAUSE',    # stable; instruction register ready for update or more shifting
+'IREXIT2', 
+'IRUPDATE', 
 ]
 
 # Utilities
@@ -38,8 +46,19 @@ class SVFParseError(Exception):
   def __init__(self, line, msg):
     super().__init__('Line ' + str(line) + ': ' + msg)
 
+class SVFExecError(Exception):
+  def __init__(self, line, msg):
+    super().__init__('Line ' + str(line) + ': ' + msg)
+
 def hex_to_val(s):
   return bytearray.fromhex(s.lstrip('(').rstrip(')'))
+
+def equals_with_mask(val, truth, mask, *, masktype):
+  assert masktype in ['MASK', 'SMASK']
+  for v, t, m in zip(val, truth, mask):
+    if (masktype == 'MASK' and v & m != t & m) or (masktype == 'SMASK' and v ^ m != t ^ m):
+      return False
+  return True
 
 # State
 interactive = False
@@ -150,23 +169,14 @@ for i, line in enumerate(src, 1):
         if len(parts) >= 6:
           assert parts[4] == 'TDO'
           expected = hex_to_val(parts[5])
-          if len(parts) < 8:
-            print('Captured:', hexlify(captured), 'Expected:', hexlify(expected))
-          else:
-            print('Captured:', hexlify(captured), 'Expected:', hexlify(expected), parts[6], parts[7])
-        if len(parts) >= 8:
-          if parts[6] == 'MASK':
-            pass
-          elif parts[6] == 'SMASK':
-            pass
-          else:
-            raise SVFParseError(i, 'Invalid mask type: ' + parts[6])
-        elif len(parts) >= 6:
-          pass
+          maskt = parts[6] if len(parts) >= 8 else 'SMASK'
+          mask = hex_to_val(parts[7]) if len(parts) >= 8 else bytearray(len(expected))
+          if not equals_with_mask(captured, expected, mask, masktype=maskt):
+            raise SVFExecError(i, 'Value captured differs from expected')
           
       elif long_send and long_send_index is None:
         bitcount = int(parts[1])
-        print('Expecting', bitcount)
+        long_send_data_len = bitcount
         assert bitcount % 8 == 0
         long_send_data = hex_to_val(parts[3])
         long_send_index = 5
@@ -174,10 +184,12 @@ for i, line in enumerate(src, 1):
         long_send_data.extend(hex_to_val(parts[0]))
       elif not long_send and long_send_index == 5:
         long_send_data.extend(hex_to_val(parts[0]))
-        print('Sending %d' % (8 * len(long_send_data)))
+        if not len(long_send_data) * 8 == long_send_data_len:
+          raise SVFParseError(i, 'Value length differs from expected')
         jtag.scan_reg(command[1:], long_send_data, capture=False)
         long_send_index = None
         long_send_data = None
+        long_send_data_len = None
         long_send_command = None 
       else:
         raise NotImplementedError('Long parse not implemented')

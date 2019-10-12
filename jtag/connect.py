@@ -77,10 +77,9 @@ C_LTIMER               = bs('10001')
 C_BSPI_READ            = bs('10010')
 C_FALL_EDGE            = bs('10011')
 
-W_SYNC                 = bytearray([0xaa, 0x99, 0x55, 0x66])
-W_NOOP                 = bytearray([0x20, 0x00, 0x00, 0x00])
-W_DUMMY                = bytearray([0xff, 0xff, 0xff, 0xff])
-W_readSTAT             = bytearray([0x28, 0x00, 0xe0, 0x01])
+W_SYNC                 = bytearray([0x66, 0xaa, 0x99, 0x55])
+W_NOOP                 = bytearray([0x00, 0x00, 0x00, 0x04])
+W_readSTAT             = bytearray([0x80, 0x07, 0x00, 0x14])
 
 
 class ZynqJTAG:
@@ -95,9 +94,8 @@ class ZynqJTAG:
     return hexlify(bits)
 
   def readSTAT(self):
-    input()
     self._jtag.scan_reg('IR', TAP_CFG_IN, capture=False)
-    self._jtag.scan_reg('DR', (W_SYNC + W_NOOP + W_readSTAT + W_DUMMY + W_DUMMY)[::-1], capture=False)
+    self._jtag.scan_reg('DR', W_NOOP + W_NOOP + W_readSTAT + W_NOOP + W_SYNC, capture=False)
     self._jtag.scan_reg('IR', TAP_CFG_OUT, capture=False)
     bits = self._jtag.scan_reg('DR', bytearray(4), capture=True)
     return hexlify(bits)
