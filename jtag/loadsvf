@@ -46,6 +46,11 @@ interactive = False
 strict = True
 jtag = JTAG2232('ftdi://0x403:0x6010/1')
 
+PAUSE_DEBUG = len(sys.argv) > 2 and '-p' in sys.argv
+
+if PAUSE_DEBUG:
+  print('Enabled pausing for logic debug. Tag !!PAUSE in SVF comment')
+
 # Open input file or interpret from stdin
 try:
   if len(sys.argv) > 1:
@@ -72,6 +77,9 @@ for i, line in enumerate(src, 1):
     dsl = line.find('//')
     if exc >= 0 or dsl >= 0:
       len_code = min(exc, dsl) + 1
+      if PAUSE_DEBUG and '!!PAUSE' in line[len_code:]:
+        jtag._sync()
+        input('Pausing on line ' + str(i) + ': ' + line[len_code:]) 
     parts = line[:len_code].strip().upper().split()
     if len(parts) == 0:
       continue
@@ -118,7 +126,7 @@ for i, line in enumerate(src, 1):
       if interactive and parts[1] == '?':
         print(jtag[parts[0]])
       if int(parts[1]) == 0:
-        jtag[parts[0]] = (0, b'')
+        jtag[parts[0]] = (0, bytearray())
       else:
         assert len(parts) >= 4
         if strict:
@@ -158,6 +166,7 @@ for i, line in enumerate(src, 1):
           
       elif long_send and long_send_index is None:
         bitcount = int(parts[1])
+        print('Expecting', bitcount)
         assert bitcount % 8 == 0
         long_send_data = hex_to_val(parts[3])
         long_send_index = 5
@@ -165,7 +174,7 @@ for i, line in enumerate(src, 1):
         long_send_data.extend(hex_to_val(parts[0]))
       elif not long_send and long_send_index == 5:
         long_send_data.extend(hex_to_val(parts[0]))
-        print('Sending %d bytes' % len(long_send_data))
+        print('Sending %d' % (8 * len(long_send_data)))
         jtag.scan_reg(command[1:], long_send_data, capture=False)
         long_send_index = None
         long_send_data = None
@@ -190,10 +199,11 @@ for i, line in enumerate(src, 1):
         clks = int(secs * jtag.freq)
       else:
         raise NotImplementedError('Unit for runtest not implemented')
-      jtag.idle()
-      jtag.write(bytes(clks // 8), use_last=False)
+      jtag.runtest(clks)
 
   except Exception as e:
     print(e)
     if not interactive:
       raise
+
+jtag._sync()

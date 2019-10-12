@@ -12,29 +12,29 @@ bs = BitSequence
 
 # Instructions expected with LSB first, so I reverse them and shift MSB first
 # Shift 1 on TMS in parallel with final bit
-TAP_EXTEST               = (6, bytes([0b000000]))
-TAP_SAMPLE               = (6, bytes([0b000001]))
-TAP_USER1                = (6, bytes([0b000010]))
-TAP_USER2                = (6, bytes([0b000011]))
-TAP_USER3                = (6, bytes([0b100010]))
-TAP_USER4                = (6, bytes([0b100011]))
-TAP_CFG_OUT              = (6, bytes([0b000100]))
-TAP_CFG_IN               = (6, bytes([0b000101]))
-TAP_USERCODE             = (6, bytes([0b001000]))
-TAP_IDCODE               = (6, bytes([0b001001]))
-TAP_ISC_ENABLE           = (6, bytes([0b010000]))
-TAP_ISC_PROGRAM          = (6, bytes([0b010001]))
-TAP_ISC_PROGRAM_SECURITY = (6, bytes([0b010010]))
-TAP_ISC_NOOP             = (6, bytes([0b010100]))
-TAP_ISC_READ             = (6, bytes([0b101011]))
-TAP_ISC_DISABLE          = (6, bytes([0b010111]))
-TAP_BYPASS               = (6, bytes([0b111111]))
+TAP_EXTEST               = (6, bytearray([0b000000]))
+TAP_SAMPLE               = (6, bytearray([0b000001]))
+TAP_USER1                = (6, bytearray([0b000010]))
+TAP_USER2                = (6, bytearray([0b000011]))
+TAP_USER3                = (6, bytearray([0b100010]))
+TAP_USER4                = (6, bytearray([0b100011]))
+TAP_CFG_OUT              = (6, bytearray([0b000100]))
+TAP_CFG_IN               = (6, bytearray([0b000101]))
+TAP_USERCODE             = (6, bytearray([0b001000]))
+TAP_IDCODE               = (6, bytearray([0b001001]))
+TAP_ISC_ENABLE           = (6, bytearray([0b010000]))
+TAP_ISC_PROGRAM          = (6, bytearray([0b010001]))
+TAP_ISC_PROGRAM_SECURITY = (6, bytearray([0b010010]))
+TAP_ISC_NOOP             = (6, bytearray([0b010100]))
+TAP_ISC_READ             = (6, bytearray([0b101011]))
+TAP_ISC_DISABLE          = (6, bytearray([0b010111]))
+TAP_BYPASS               = (6, bytearray([0b111111]))
 
-DAP_ABORT                = (4, bytes([0b1000]))
-DAP_DPACC                = (4, bytes([0b1010]))
-DAP_APACC                = (4, bytes([0b1011]))
-DAP_ARM_IDCODE           = (4, bytes([0b1110]))
-DAP_BYPASS               = (4, bytes([0b1111]))
+DAP_ABORT                = (4, bytearray([0b1000]))
+DAP_DPACC                = (4, bytearray([0b1010]))
+DAP_APACC                = (4, bytearray([0b1011]))
+DAP_ARM_IDCODE           = (4, bytearray([0b1110]))
+DAP_BYPASS               = (4, bytearray([0b1111]))
 
 R_CRC                  = bs('00000')
 R_FAR                  = bs('00001')
@@ -77,28 +77,29 @@ C_LTIMER               = bs('10001')
 C_BSPI_READ            = bs('10010')
 C_FALL_EDGE            = bs('10011')
 
-W_SYNC                 = b'\xaa\x99\x55\x66'
-W_NOOP                 = b'\x20\x00\x00\x00'
-W_DUMMY                = b'\xff\xff\xff\xff'
-W_readSTAT             = b'\x28\x00\xe0\x01'
+W_SYNC                 = bytearray([0xaa, 0x99, 0x55, 0x66])
+W_NOOP                 = bytearray([0x20, 0x00, 0x00, 0x00])
+W_DUMMY                = bytearray([0xff, 0xff, 0xff, 0xff])
+W_readSTAT             = bytearray([0x28, 0x00, 0xe0, 0x01])
 
 
 class ZynqJTAG:
   def __init__(self, url):
     self._jtag = JTAG2232(url)
     self._jtag.TIR = DAP_BYPASS
-    self._jtag.TDR = (1, b'\x01')
+    self._jtag.TDR = (1, bytearray([0x01]))
 
   def readIDCODE(self):
     self._jtag.scan_reg('IR', TAP_IDCODE, capture=False)
-    bits = self._jtag.scan_reg('DR', bs('0' * 32), capture=True)
+    bits = self._jtag.scan_reg('DR', bytearray(4), capture=True)
     return hexlify(bits)
 
   def readSTAT(self):
+    input()
     self._jtag.scan_reg('IR', TAP_CFG_IN, capture=False)
-    self._jtag.scan_reg('DR', W_SYNC + W_NOOP + W_readSTAT + W_DUMMY + W_DUMMY, capture=False)
+    self._jtag.scan_reg('DR', (W_SYNC + W_NOOP + W_readSTAT + W_DUMMY + W_DUMMY)[::-1], capture=False)
     self._jtag.scan_reg('IR', TAP_CFG_OUT, capture=False)
-    bits = self._jtag.scan_reg('DR', bs('0' * 32), capture=True)
+    bits = self._jtag.scan_reg('DR', bytearray(4), capture=True)
     return hexlify(bits)
 
 

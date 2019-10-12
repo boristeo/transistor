@@ -1,6 +1,7 @@
 from array import array
 from pyftdi.ftdi import Ftdi
 from pyftdi.bits import BitSequence
+import time
 
 TO_RESET               = BitSequence('11111')
 TO_IDLE                = BitSequence('0')
@@ -16,38 +17,54 @@ class JTAG2232:
   def __init__(self, url, noreset=False):
     self._ftdi = Ftdi()
     self._ftdi.open_mpsse_from_url(url, direction=0, frequency=1)
-    # Configure MPSSE, frequency and pinmode
+    self._write_buff = array('B')
+
     self.set_freq(10000000)
-    self._ftdi.write_data(bytearray(b'\x80\xc8\xfb'))
-    self._ftdi.write_data(bytearray(b'\x82\x00\x00'))
+    # Configure MPSSE and pinmode
+    self._stack_cmd(array('B', [0x80, 0xc8, 0xfb]))
+    self._stack_cmd(array('B', [0x82, 0x00, 0x00]))
 
     self._last = None
-    self._write_buff = array('B')
     self._state = 'UNKNOWN'
     if not noreset:
       self.reset()
     
     # Chain setup
-    self.HIR = b''
-    self.TIR = b''
-    self.HDR = b''
-    self.TDR = b''
+    self.HIR = bytearray()
+    self.TIR = bytearray()
+    self.HDR = bytearray()
+    self.TDR = bytearray()
 
     self.ENDDR = 'IDLE'
     self.ENDIR = 'IDLE'
 
   def set_freq(self, freq):
+    # 8b (8a) - enables (disables) div by 5
+    # 96 (97) - enables (disable) adaptive clocking
+    # 8c (8d) - enables (disable) 3-phase clocking
+    self._stack_cmd(array('B', [0x8a, 0x97, 0x8d]))
+
     base = 60000000
-    self._ftdi.write_data(bytearray(b'\x8a\x97\x8d'))
     divider = base // freq
     # TCK = 60MHz /((1 + [(1 + (0x00) * 256) | (0x1e)])*2)
     divider = divider // 2 - 1
     high = divider >> 8
     assert high < 0xff
     low = divider & 0xff
-    self._ftdi.write_data(bytearray([0x86, low, high]))
+    self._stack_cmd(array('B', [0x86, low, high]))
     self.freq = freq
   
+  def runtest(self, clocks):
+    assert self._state in ['RESET', 'IDLE']
+    while clocks > 7: 
+      chunk = 0xffff if 524288 < clocks else clocks // 8 - 1
+      self._stack_cmd(array('B', [0x8f, chunk & 0xff, chunk >> 8]))
+      clocks -= chunk * 8 + 8
+      self._sync()
+      time.sleep(chunk * 8 / self.freq)
+    if clocks > 0:
+      self._stack_cmd(array('B', [0x8e, clocks - 1]))
+      
   def __getitem__(self, item):
     return {'HDR': self.HDR, 'TDR': self.TDR, 'HIR': self.HIR, 'TIR': self.TIR}[item]
 
@@ -58,7 +75,7 @@ class JTAG2232:
       elif isinstance(value, tuple):
         assert len(value) == 2
         assert isinstance(value[0], int)
-        assert isinstance(value[1], bytes) or isinstance(value[1], bytearray)
+        assert isinstance(value[1], bytearray)
       else:
         value = BitSequence(value)
 
@@ -76,8 +93,10 @@ class JTAG2232:
       return bytearray()
     if isinstance(out, tuple):
       out = BitSequence(bytes_=out[1])[:out[0]]
+    elif isinstance(out, bytearray):
+      out = BitSequence(bytes_=out)
     elif not isinstance(out, BitSequence):
-      return Exception('Expect a BitSequence')
+      raise Exception('Expect a BitSequence')
     length = len(out)
     if use_last:
       (out, self._last) = (out[:-1], int(out[-1]))
@@ -134,16 +153,20 @@ class JTAG2232:
       self._last = None
       cmd = array('B', (Ftdi.WRITE_BITS_TMS_NVE, length-1, out.tobyte()))
       self._stack_cmd(cmd)
-      self._sync()
 
   def write(self, data, *, use_last=True, reversebytes=False, reversebits=False):
-    if (isinstance(data, bytes) or isinstance(data, bytearray)) and len(data) > 1000:
+    chunksize = 65536
+    if isinstance(data, bytearray) and len(data) > chunksize:
       bytecount = len(data)
       sent_bytes = 0
-      while sent_bytes < bytecount:
-        chunk_size = 1000 if 1000 < bytecount - sent_bytes else bytecount - sent_bytes
-        self._write(data[sent_bytes:sent_bytes + chunk_size], use_last=use_last, reversebytes=reversebytes, reversebits=reversebits)
-        sent_bytes += chunk_size
+      chunks = bytecount // chunksize
+      if reversebytes:
+        data.reverse()
+      for _ in range(chunks):
+        self._write(data[sent_bytes:sent_bytes + chunksize], use_last=False, reversebytes=False, reversebits=reversebits)
+        self._sync()
+        sent_bytes += chunksize
+      self._write(data[sent_bytes:], use_last=True, reversebytes=False, reversebits=reversebits)
     else:
       self._write(data, use_last=use_last, reversebytes=reversebytes, reversebits=reversebits)
         
@@ -155,7 +178,7 @@ class JTAG2232:
       assert isinstance(data[1], bytearray) or isinstance(data[1], bytes)
       bitcount = data[0]
       data = data[1]
-    elif isinstance(data, bytes) or isinstance(data, bytearray):
+    elif isinstance(data, bytearray):
       bitcount = 8 * len(data) 
     elif isinstance(data, BitSequence):
       bitcount = len(data)
@@ -169,21 +192,23 @@ class JTAG2232:
 
     bytecount = len(data)
     assert (bitcount <= 8 * bytecount)
+    assert bytecount <= 65536
 
     bitcount -= 1 if use_last else 0
     full_bytes = bitcount // 8
     remainder = bitcount - 8 * full_bytes
 
-    lastbyteindex = full_bytes if not reversebytes else bytecount - full_bytes - 1
-  
+    if reversebytes:
+      data.reverse()
+
     if use_last:
       lastbitmask = (1 << (7 - remainder)) if not reversebits else (1 << remainder)
-      self._last = 1 if data[lastbyteindex] & lastbitmask else 0
+      self._last = 1 if data[-1] & lastbitmask else 0
 
     if full_bytes > 0:
-      self._write_bytes(data[:full_bytes] if not reversebytes else data[bytecount-full_bytes:], reverse=reversebytes)
+      self._write_bytes(data[:full_bytes], reverse=reversebits)
     if remainder > 0:
-      self._write_bits(data[lastbyteindex], count=remainder, reverse=reversebits)
+      self._write_bits(data[-1], count=remainder, reverse=reversebits)
 
   def _write_bytes(self, out, reverse=False):
     olen = len(out) - 1
@@ -248,7 +273,7 @@ class JTAG2232:
       raise Exception('Begin state ' + self._state + ' not supported')
     self._state = reg + 'SHIFT'
 
-    captured = self._scan_reg(H, data, T, END, capture=capture, reverse=(reg=='IR'))
+    captured = self._scan_reg(H, data, T, END, capture=capture, reverse=True)
     if capture:
       return captured
 
