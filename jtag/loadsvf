@@ -56,7 +56,7 @@ def hex_to_val(s):
 def equals_with_mask(val, truth, mask, *, masktype):
   assert masktype in ['MASK', 'SMASK']
   for v, t, m in zip(val, truth, mask):
-    if (masktype == 'MASK' and v & m != t & m) or (masktype == 'SMASK' and v ^ m != t ^ m):
+    if (masktype == 'MASK' and v & m != t & m) or (masktype == 'SMASK' and v | m != t | m):
       return False
   return True
 
