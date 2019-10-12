@@ -27,3 +27,10 @@ Coerced someone's Python FTDI library into working. Rewriting it would be too mu
 
 Also, turns out there was a logic analyzer in the room across mine all along. It's heavy, loud, and older than me, but saved me a ton of time in realizing that the FTDI's clock output was inverted.
 
+## Day 14 - Update on the past week
+My JTAG idea worked. Still doesn't solve my problem of not knowing how to load things into SPI, but at least I can test my Verilog designs now.
+
+The JTAG solution has two parts: the first is an FTDI-JTAG adapter class that interfaces with the FTDI 2232H on the Zybo dev board I'm using, and the second part is an SVF file interpreter that calls the appropriate functions from the FTDI-JTAG adapter. A lot of the code is questionable, but now that I have a way to test without having to pull out the logic analyzer, I'll refactor it.
+
+Next steps for this project are to add UART functionality to the FTDI - this should not be hard as that's basically its intended purpose. This will not add any new functionality to the FPGA designs, but it will keep me from having to use a second FTDI and two wires any time I want to work on this.
+
