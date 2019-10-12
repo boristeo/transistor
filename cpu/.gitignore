@@ -1,0 +1,5 @@
+out/
+log/
+.Xil/
+usage_statistics*
+*.swp
