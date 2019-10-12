@@ -154,24 +154,22 @@ class JTAG2232:
       cmd = array('B', (Ftdi.WRITE_BITS_TMS_NVE, length-1, out.tobyte()))
       self._stack_cmd(cmd)
 
-  def write(self, data, *, use_last=True, reversebytes=False, reversebits=False):
+  def write(self, data, *, use_last=True, reversebits=False):
     chunksize = 65536
     if isinstance(data, bytearray) and len(data) > chunksize:
       bytecount = len(data)
       sent_bytes = 0
       chunks = bytecount // chunksize
-      if reversebytes:
-        data.reverse()
       for _ in range(chunks):
-        self._write(data[sent_bytes:sent_bytes + chunksize], use_last=False, reversebytes=False, reversebits=reversebits)
+        self._write(data[sent_bytes:sent_bytes + chunksize], use_last=False, reversebits=reversebits)
         self._sync()
         sent_bytes += chunksize
-      self._write(data[sent_bytes:], use_last=True, reversebytes=False, reversebits=reversebits)
+      self._write(data[sent_bytes:], use_last=True, reversebits=reversebits)
     else:
-      self._write(data, use_last=use_last, reversebytes=reversebytes, reversebits=reversebits)
+      self._write(data, use_last=use_last, reversebits=reversebits)
         
 
-  def _write(self, data, *, use_last=True, reversebytes=False, reversebits=False):
+  def _write(self, data, *, use_last=True, reversebits=False):
     if isinstance(data, tuple):
       assert len(data) == 2
       assert isinstance(data[0], int)
@@ -197,9 +195,6 @@ class JTAG2232:
     bitcount -= 1 if use_last else 0
     full_bytes = bitcount // 8
     remainder = bitcount - 8 * full_bytes
-
-    if reversebytes:
-      data.reverse()
 
     if use_last:
       lastbitmask = (1 << (7 - remainder)) if not reversebits else (1 << remainder)
@@ -281,13 +276,13 @@ class JTAG2232:
   def _scan_reg(self, pre, data, post, endstate, *, capture, reverse):
     assert self._state in ['DRSHIFT', 'IRSHIFT']
 
-    self.write(pre, use_last=False, reversebits=reverse, reversebytes=reverse)
+    self.write(pre, use_last=False, reversebits=reverse)
     last_in_data = len(post) == 0
     if capture:
       captured = self.shift_register(data, use_last=last_in_data)
     else:
-      self.write(data, use_last=last_in_data, reversebits=reverse, reversebytes=reverse)
-    self.write(post, use_last=True, reversebits=reverse, reversebytes=reverse)
+      self.write(data, use_last=last_in_data, reversebits=reverse)
+    self.write(post, use_last=True, reversebits=reverse)
 
     if endstate in ['IRUPDATE', 'IRUPDATE']:
       assert self._state[:2] == endstate[:2] 

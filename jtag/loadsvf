@@ -164,7 +164,7 @@ for i, line in enumerate(src, 1):
         capture = len(parts) > 4
         bitcount = int(parts[1])
         data = hex_to_val(parts[3])
-        captured = jtag.scan_reg(command[1:], (bitcount, data), capture=capture)
+        captured = jtag.scan_reg(command[1:], (bitcount, data[::-1]), capture=capture)
 
         if len(parts) >= 6:
           assert parts[4] == 'TDO'
@@ -186,7 +186,7 @@ for i, line in enumerate(src, 1):
         long_send_data.extend(hex_to_val(parts[0]))
         if not len(long_send_data) * 8 == long_send_data_len:
           raise SVFParseError(i, 'Value length differs from expected')
-        jtag.scan_reg(command[1:], long_send_data, capture=False)
+        jtag.scan_reg(command[1:], long_send_data[::-1], capture=False)
         long_send_index = None
         long_send_data = None
         long_send_data_len = None
