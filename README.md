@@ -1,4 +1,4 @@
-# From the Transistor to the Web Browser
+# From the Transistor to the Web Browser: My Attempt
 
 The old 'README' is now in PROGRESS.md. This file now contains instructions for recreating my results.
 
