@@ -1,0 +1,4 @@
+#!/usr/bin/env sh
+
+riscv64-unknown-elf-as test.a
+qemu-system-riscv64 -nographic -serial mon:stdio -append 'console=ttyS0' -kernel a.out

@@ -45,6 +45,7 @@ class JTAG2232:
     self._stack_cmd(array('B', [0x8a, 0x97, 0x8d]))
 
     base = 60000000
+    if freq > base or freq < 1: raise ValueError('Invalid frequency')
     divider = base // freq
     # TCK = 60MHz /((1 + [(1 + (0x00) * 256) | (0x1e)])*2)
     divider = divider // 2 - 1
