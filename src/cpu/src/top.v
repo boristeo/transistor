@@ -5,12 +5,9 @@
 module top (
   input wire clk,
   inout wire [7:0] je,
-  output reg [3:0] led
+  output wire [3:0] led
 );
 
-  reg tx_en;
-  wire tx_rdy;
-  reg [7:0] tx_d = 65;
 
   wire rx_rdy;
   wire [7:0] rx_d;
@@ -41,38 +38,47 @@ module top (
     .rx(je[1])
   );
 
-  reg [31:0] registers [1:31];
-  reg [31:0] instruction = 0;
-  reg [3:0] filled = 0;
-  reg sending = 0;
+  wire tx_shift_begin;
+  wire [255:0] tx_shift_d;
+  wire [3:0] tx_shift_bytecount;
+  byte_ser s (
+    .reset(),
+    .clk(clk),
+    .din(tx_shift_d),
+    .din_bytecount(tx_shift_bytecount),
+    .shift_begin(tx_shift_begin),
+    .shift_enable(tx_rdy),
+    .out(tx_d),
+    .full(),
+    .empty()
+  );
 
-  always @ (negedge clk_uart)
-  begin
-    if (~sending)
-    begin
-      tx_en <= 0;
-      if (rx_rdy)
-      begin
-        instruction <= instruction | (rx_d << filled * 8);
-        filled <= filled + 1;
-        led[filled] <= 1;
-        if (filled + 1 >= 4)
-          sending = 1;
+  reg [31:0] registers [1:31];
+  reg [31:0] pc;
+
+  reg testing = 0;
+  assign led[0] = testing;
+
+  reg [7:0] instruction = 0;
+
+  test t (
+    .clk(clk),
+    .enable(testing),
+    .rx_d(rx_d),
+    .out(tx_shift_d),
+    .out_rdy(tx_shift_begin),
+    .out_bytecount(tx_shift_bytecount)
+  );
+    
+  always @(negedge clk_uart) begin
+    if (rx_rdy) begin
+      if (rx_d == 8'hFF) begin
+        // reset
+        testing = 0;
       end
-    end
-    else
-    begin
-      if (tx_rdy)
-      begin
-        tx_d <= (instruction >> (filled - 1) * 8) & 8'hFF;
-        tx_en <= 1;
-        filled <= filled - 1;
-        led[filled - 1] <= 0;
-        if (filled - 1 == 0)
-        begin
-          sending <= 0;
-          instruction <= 0;
-        end
+      else if (rx_d == 8'hFE) begin
+        // test begin
+        testing = 1;
       end
     end
   end
