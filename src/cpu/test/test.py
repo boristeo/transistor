@@ -5,10 +5,11 @@ import serial
 class CPUDebugServer:
   def __init__(self, port, xlen_bytes=4):
     self.serial = serial.Serial(port, 115200, timeout=1)
+    self.reset()
     self.test_begin()
-    response = self.serial.read(1)
+    response = self.serial.read(2)
     print(response)
-    if response != b'\xfe':
+    if response != b'\xfe\xfe':
       raise Exception('Expected 0xFE response on test begin')
     self._xlen_bytes = xlen_bytes
 
@@ -17,6 +18,15 @@ class CPUDebugServer:
 
   def test_begin(self):
     self.serial.write(bytes([0xfe]))
+
+  def locking_test(self):
+    self.serial.write(bytes([0xff, 0xfe, 0xff, 0xfe, 0xff, 0xfe, 0xff, 0xfe, 0xff]))
+    response = self.serial.read(8)
+    print(response)
+    if response != b'\xfe\xfe\xfe\xfe\xfe\xfe\xfe\xfe':
+      raise Exception('Expected 4 test begin responses')
+
+
 
   def read_reg(self, reg):
     if not 0 <= reg <= 31: raise Exception('Register index out of bounds')
@@ -33,3 +43,4 @@ class CPUDebugServer:
 
 
 cpu = CPUDebugServer('/dev/tty.usbserial-AD01V58N')
+cpu.locking_test()
