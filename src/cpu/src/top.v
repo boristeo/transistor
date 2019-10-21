@@ -27,6 +27,10 @@ module top (
       clk_counter = clk_counter + 1;
   end
 
+  wire [7:0] tx_d;
+  wire tx_en;
+  wire tx_rdy;
+
   uart u (
     .clk_uart(clk_uart),
     .tx_d(tx_d),
@@ -42,14 +46,14 @@ module top (
   wire [255:0] tx_shift_d;
   wire [3:0] tx_shift_bytecount;
   byte_ser s (
-    .reset(),
+    .reset(0),
     .clk(clk),
     .din(tx_shift_d),
     .din_bytecount(tx_shift_bytecount),
     .shift_begin(tx_shift_begin),
     .shift_enable(tx_rdy),
     .out(tx_d),
-    .full(),
+    .full(tx_en),
     .empty()
   );
 

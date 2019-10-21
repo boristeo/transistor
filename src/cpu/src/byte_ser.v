@@ -24,9 +24,9 @@ module byte_ser(
       state = din_bytecount + 1;
       data = din;
     end
-    else if (shift_enable) begin
+    else if (state != 0 && shift_enable) begin
       out <= data[7:0];
-      data <= data << 8;
+      data <= data >> 8;
       state <= state - 1;
     end
   end
