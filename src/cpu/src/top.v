@@ -9,9 +9,6 @@ module top (
 );
 
 
-  wire rx_rdy;
-  wire [7:0] rx_d;
-
   // Clock divider
   reg [31:0] clk_counter = 0;
   reg clk_uart = 0;
@@ -26,6 +23,9 @@ module top (
     else
       clk_counter = clk_counter + 1;
   end
+
+  wire rx_rdy;
+  wire [7:0] rx_d;
 
   wire [7:0] tx_d;
   wire tx_en;
@@ -45,6 +45,7 @@ module top (
   wire tx_shift_begin;
   wire [255:0] tx_shift_d;
   wire [3:0] tx_shift_bytecount;
+  wire tx_shift_empty;
   byte_ser s (
     .reset(0),
     .clk(clk),
@@ -53,14 +54,16 @@ module top (
     .shift_begin(tx_shift_begin),
     .shift_enable(tx_rdy),
     .out(tx_d),
-    .full(tx_en),
-    .empty()
+    .out_rdy(tx_en)
   );
 
   reg [31:0] registers [1:31];
   reg [31:0] pc;
 
   reg testing = 0;
+  wire test_done;
+  reg reset_pending = 0;
+
   assign led[0] = testing;
 
   reg [7:0] instruction = 0;
@@ -70,20 +73,32 @@ module top (
     .enable(testing),
     .rx_d(rx_d),
     .out(tx_shift_d),
+    .out_bytecount(tx_shift_bytecount),
     .out_rdy(tx_shift_begin),
-    .out_bytecount(tx_shift_bytecount)
+    .out_buf_busy(tx_en),
+    .done(test_done)
   );
     
+
   always @(negedge clk_uart) begin
     if (rx_rdy) begin
       if (rx_d == 8'hFF) begin
         // reset
-        testing = 0;
+        if (test_done || reset_pending) begin
+          // force recover control
+          testing = 0;
+        end
+        else begin
+          reset_pending = 1;
+        end
       end
       else if (rx_d == 8'hFE) begin
         // test begin
         testing = 1;
       end
+    end
+    if (reset_pending && test_done) begin
+      testing = 0;
     end
   end
 
