@@ -32,5 +32,14 @@ My JTAG idea worked. Still doesn't solve my problem of not knowing how to load t
 
 The JTAG solution has two parts: the first is an FTDI-JTAG adapter class that interfaces with the FTDI 2232H on the Zybo dev board I'm using, and the second part is an SVF file interpreter that calls the appropriate functions from the FTDI-JTAG adapter. A lot of the code is questionable, but now that I have a way to test without having to pull out the logic analyzer, I'll refactor it.
 
-Next steps for this project are to add UART functionality to the FTDI - this should not be hard as that's basically its intended purpose. This will not add any new functionality to the FPGA designs, but it will keep me from having to use a second FTDI and two wires any time I want to work on this.
+## I'm scrapping the 'day #' labels since I end up taking long pauses anyway 
+
+## Auto Verification
+As I get into building the CPU pipeline, I want a way to write unit tests for part. Old computers had a nice front panel with flashing lights - I think it's a lot more convenient to prod around with the UART. So here's my thinking:
+
+One byte 'opcode' that indicates R/W and the source. I.e. 1 00 00001 to write into register 1; 0 01 00000 to read contents of decode register; 1 01 0001 to write to the execute register; 0 11 11111 to run for 32 steps; etc.
+
+Then, if the opcode indicates a write, the next several bytes will be applied to the corresponding register. Still not sure how this is going to work, but it seems reasonable.
+
+Assuming this all works, I can write a python script to send in a full register of input to some stage, then run for one cycle and read the output register of that stage. Seems convenient. This means I need to come up with a bit mapping for these pipeline registers. 
 
