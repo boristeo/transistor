@@ -4,10 +4,8 @@
 
 module top (
   input wire clk,
-  input wire [3:0] btn,
   input wire rx,
-  output wire tx,
-  output wire [3:0] led
+  output wire tx
 );
 
   reg tx_rdy;
@@ -15,8 +13,6 @@ module top (
 
   wire rx_rdy;
   wire [7:0] rx_byte;
-
-  assign led[3:0] = rx_byte[3:0];
 
   // Clock divider
   reg [31:0] clk_counter = 0;

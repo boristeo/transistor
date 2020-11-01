@@ -1,13 +1,14 @@
 set PART "xc7z010clg400-1"
 set OUTDIR "out"
-set SRCDIR "src"
+set SRCDIR "verilog"
 set XDCDIR "xdc"
 
 read_verilog $SRCDIR/top.v
-read_xdc $XDCDIR/zybo.xdc
 
 synth_design -top top -part $PART
 write_checkpoint -force $OUTDIR/post_synth.dcp
+
+read_xdc $XDCDIR/zybo.xdc
 
 opt_design
 write_checkpoint -force $OUTDIR/post_opt.dcp
