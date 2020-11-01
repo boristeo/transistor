@@ -20,4 +20,12 @@ route_design
 write_checkpoint -force $OUTDIR/post_route.dcp
 
 write_debug_probes -force $OUTDIR/debug.ltx
-write_bitstream -g startupclk:jtagclk -force $OUTDIR/a.bit
+write_bitstream -force $OUTDIR/a.bit
+
+open_hw_manager
+create_hw_target zybo
+open_hw_target
+set device0 [create_hw_device -part $PART]
+set_property PROGRAM.FILE $OUTDIR/a.bit $device0
+program_hw_devices -force -svf_file $OUTDIR/a.svf $device0
+close_hw_target

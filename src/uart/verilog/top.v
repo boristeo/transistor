@@ -5,17 +5,18 @@
 module top (
   input wire clk,
   input wire [3:0] btn,
-  inout wire [7:0] je,
+  input wire rx,
+  output wire tx,
   output wire [3:0] led
 );
 
   reg tx_rdy;
-  reg [7:0] tx_d = 65;
+  reg [7:0] tx_byte = 65;
 
   wire rx_rdy;
-  wire [7:0] rx_d;
+  wire [7:0] rx_byte;
 
-  assign led[3:0] = rx_d[3:0];
+  assign led[3:0] = rx_byte[3:0];
 
   // Clock divider
   reg [31:0] clk_counter = 0;
@@ -25,21 +26,21 @@ module top (
   begin
     if (clk_counter == `CLK_PER_HALF_CYCLE)
     begin
-      clk_counter = 0;
-      clk_uart = ~clk_uart;
+      clk_counter <= 0;
+      clk_uart <= ~clk_uart;
     end
     else
-      clk_counter = clk_counter + 1;
+      clk_counter <= clk_counter + 1;
   end
 
   uart u (
-    .clk_uart(clk_uart),
-    .tx_d(tx_d),
+    .clk(clk_uart),
+    .tx_byte(tx_byte),
     .tx_rdy(tx_rdy),
-    .tx(je[0]),
-    .rx_d(rx_d),
+    .tx(tx),
+    .rx_byte(rx_byte),
     .rx_rdy(rx_rdy),
-    .rx(je[1])
+    .rx(rx)
   );
 
   always @ (negedge clk_uart)
@@ -47,12 +48,12 @@ module top (
     tx_rdy <= rx_rdy;
     if (rx_rdy)
     begin
-      if (rx_d >= 65 && rx_d <= 90)
-        tx_d <= rx_d + 32;
-      else if (rx_d >= 97 && rx_d <= 122)
-        tx_d <= rx_d - 32;
+      if (rx_byte >= 65 && rx_byte <= 90)
+        tx_byte <= rx_byte + 32;
+      else if (rx_byte >= 97 && rx_byte <= 122)
+        tx_byte <= rx_byte - 32;
       else
-        tx_d <= rx_d;
+        tx_byte <= rx_byte;
     end
   end
 
